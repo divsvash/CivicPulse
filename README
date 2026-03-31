@@ -1,0 +1,201 @@
+# ⚡ CivicPulse — Node.js / Express / MySQL Backend
+
+Smart City Complaint Intelligence Platform REST API
+
+---
+
+## 📁 Project Structure
+
+```
+civicpulse-backend/
+├── server.js                   ← Entry point
+├── package.json
+├── .env.example                ← Copy to .env and configure
+│
+├── config/
+│   ├── db.js                   ← MySQL connection pool
+│   └── initDB.js               ← Schema creation + seed data
+│
+├── middleware/
+│   ├── auth.js                 ← JWT authenticate + authorize()
+│   ├── errorHandler.js         ← Global error handler + asyncHandler
+│   └── upload.js               ← Multer image upload
+│
+├── controllers/
+│   ├── authController.js       ← Register, Login, Profile
+│   ├── complaintController.js  ← Full complaint CRUD + timeline
+│   ├── analyticsController.js  ← Dashboard KPIs, heatmap, trends
+│   └── miscControllers.js      ← Departments, Zones, Users,
+│                                  Notifications, SLA Rules
+│
+├── routes/
+│   ├── auth.js
+│   ├── complaints.js
+│   ├── analytics.js
+│   ├── departments.js
+│   ├── zones.js
+│   ├── users.js
+│   ├── notifications.js
+│   └── sla.js
+│
+└── uploads/                    ← Auto-created on first upload
+```
+
+---
+
+## 🚀 Quick Start
+
+### 1. Install dependencies
+```bash
+npm install
+```
+
+### 2. Configure environment
+```bash
+cp .env.example .env
+# Edit .env — set DB_PASSWORD, JWT_SECRET, etc.
+```
+
+### 3. Initialize the database
+```bash
+node config/initDB.js
+```
+This creates all tables and inserts seed data.
+
+### 4. Start the server
+```bash
+npm run dev        # development (nodemon)
+npm start          # production
+```
+
+---
+
+## 🔑 Default Credentials (after initDB)
+
+| Role    | Email                  | Password     |
+|---------|------------------------|--------------|
+| Admin   | admin@civicpulse.in    | Admin@123    |
+| Officer | ravi@civicpulse.in     | Officer@123  |
+| Citizen | anjali@example.com     | Citizen@123  |
+
+---
+
+## 🛠 API Reference
+
+All responses follow the shape:
+```json
+{ "success": true/false, "message": "...", "data": ... }
+```
+
+### Auth
+| Method | Endpoint                    | Auth     | Description          |
+|--------|-----------------------------|----------|----------------------|
+| POST   | /api/auth/register          | —        | Register citizen     |
+| POST   | /api/auth/login             | —        | Login (returns JWT)  |
+| GET    | /api/auth/me                | 🔒 Any   | Get own profile      |
+| PUT    | /api/auth/profile           | 🔒 Any   | Update profile       |
+| PUT    | /api/auth/change-password   | 🔒 Any   | Change password      |
+
+### Complaints
+| Method | Endpoint                        | Auth            | Description                    |
+|--------|---------------------------------|-----------------|--------------------------------|
+| GET    | /api/complaints/track/:id       | —               | Public tracking by ID or CP-no |
+| POST   | /api/complaints                 | 🔒 Citizen      | Submit complaint (+ image)     |
+| GET    | /api/complaints/my              | 🔒 Citizen      | My complaints                  |
+| POST   | /api/complaints/:id/feedback    | 🔒 Citizen      | Rate resolved complaint        |
+| GET    | /api/complaints/assigned        | 🔒 Officer      | Complaints assigned to me      |
+| PUT    | /api/complaints/:id/status      | 🔒 Officer/Admin| Update status + resolution     |
+| GET    | /api/complaints                 | 🔒 Admin        | All complaints (filterable)    |
+| PUT    | /api/complaints/:id/assign      | 🔒 Admin        | Assign officer                 |
+| DELETE | /api/complaints/:id             | 🔒 Admin        | Delete complaint               |
+| GET    | /api/complaints/:id             | 🔒 Any          | Get single with timeline       |
+
+#### Query params for GET /api/complaints
+```
+?status=open|progress|resolved|closed
+&priority=low|medium|high
+&category=roads|water|sanitation|electricity|parks|other
+&zone_id=1
+&department_id=1
+&search=pothole
+&page=1&limit=20
+```
+
+### Analytics (Admin / Officer)
+| Method | Endpoint                            | Description                    |
+|--------|-------------------------------------|--------------------------------|
+| GET    | /api/analytics/overview             | KPI cards (totals, SLA, avg)   |
+| GET    | /api/analytics/monthly-trend        | Last 12 months bar chart data  |
+| GET    | /api/analytics/by-category          | Breakdown by category          |
+| GET    | /api/analytics/heatmap              | Zone-wise density map data     |
+| GET    | /api/analytics/leaderboard          | Department ranking             |
+| GET    | /api/analytics/sla-violations       | Active SLA breaches            |
+| GET    | /api/analytics/predictive           | AI-style trend insights        |
+
+### Departments
+| Method | Endpoint                        | Auth    |
+|--------|---------------------------------|---------|
+| GET    | /api/departments                | —       |
+| GET    | /api/departments/:id            | —       |
+| POST   | /api/departments                | Admin   |
+| PUT    | /api/departments/:id            | Admin   |
+| DELETE | /api/departments/:id            | Admin   |
+
+### Zones
+| Method | Endpoint            | Auth  |
+|--------|---------------------|-------|
+| GET    | /api/zones          | —     |
+| PUT    | /api/zones/:id/risk | Admin |
+
+### Users (Admin)
+| Method | Endpoint                    |
+|--------|-----------------------------|
+| GET    | /api/users                  |
+| POST   | /api/users/officer          |
+| PATCH  | /api/users/:id/toggle       |
+
+### Notifications
+| Method | Endpoint                    |
+|--------|-----------------------------|
+| GET    | /api/notifications          |
+| PATCH  | /api/notifications/read-all |
+| PATCH  | /api/notifications/:id/read |
+
+### SLA Rules (Admin)
+| Method | Endpoint        |
+|--------|-----------------|
+| GET    | /api/sla        |
+| PUT    | /api/sla/:id    |
+
+---
+
+## 🗄 Database Schema
+
+**Tables:** `users` · `departments` · `zones` · `complaints` · `complaint_timeline` · `sla_rules` · `notifications`
+
+**Roles:** `citizen` · `officer` · `admin`
+
+**Complaint statuses:** `open` → `progress` → `resolved` → `closed`
+
+---
+
+## 🔐 Authentication
+
+All protected routes require:
+```
+Authorization: Bearer <jwt_token>
+```
+
+Tokens expire in 7 days (configurable via `JWT_EXPIRES_IN`).
+
+---
+
+## 📦 Tech Stack
+
+- **Runtime:** Node.js
+- **Framework:** Express.js 4.x
+- **Database:** MySQL 8 via `mysql2`
+- **Auth:** JWT (`jsonwebtoken`) + bcrypt (`bcryptjs`)
+- **Upload:** Multer (local disk, max 10 MB)
+- **Validation:** express-validator
+- **Dev:** nodemon

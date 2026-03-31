@@ -1,0 +1,354 @@
+/* ============================================================
+   CivicPulse — styles.css
+   Urban Intelligence Design System
+   ============================================================ */
+
+/* ---------- Base ---------- */
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #0A0F1E;
+  color: #E2E8F0;
+  overflow-x: hidden;
+}
+
+.font-syne { font-family: 'Syne', sans-serif; }
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.3); border-radius: 3px; }
+
+/* ---------- Animated Mesh Blobs ---------- */
+.mesh-blob {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(80px);
+  animation: meshDrift 20s ease-in-out infinite alternate;
+}
+
+@keyframes meshDrift {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, -30px) scale(1.15); }
+}
+
+/* ---------- Grid Overlay ---------- */
+.grid-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(6,182,212,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6,182,212,0.035) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* ---------- Floating Ambient Dots ---------- */
+.float-dot {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: floatDot var(--dur, 4s) ease-in-out infinite alternate;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes floatDot {
+  0%   { transform: translateY(0) scale(1); opacity: 0.3; }
+  100% { transform: translateY(-20px) scale(1.5); opacity: 0.9; }
+}
+
+/* ---------- Glassmorphism ---------- */
+.glass {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.glass-dark {
+  background: rgba(10,15,30,0.7);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+/* ---------- Gradient Text ---------- */
+.gradient-text {
+  background: linear-gradient(135deg, #06B6D4 0%, #3B82F6 50%, #8B5CF6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-shimmer {
+  background: linear-gradient(90deg, #06B6D4, #3B82F6, #8B5CF6, #06B6D4);
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* ---------- Live Glow Dot ---------- */
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #06B6D4;
+  box-shadow: 0 0 10px #06B6D4, 0 0 20px rgba(6,182,212,0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.85); }
+}
+
+/* ---------- Page Transition ---------- */
+.page-enter { animation: slideUp 0.5s ease both; }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---------- Navbar Links ---------- */
+.nav-link { position: relative; }
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -4px; left: 0; right: 0;
+  height: 1px;
+  background: #06B6D4;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+.nav-link:hover::after,
+.nav-link.active::after { transform: scaleX(1); }
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+  background: linear-gradient(135deg, #06B6D4, #3B82F6);
+  color: white;
+  font-weight: 600;
+  transition: all 0.25s;
+  box-shadow: 0 4px 20px rgba(6,182,212,0.3);
+}
+
+.btn-primary:hover  { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(6,182,212,0.5); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-ghost {
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #E2E8F0;
+  transition: all 0.25s;
+}
+
+.btn-ghost:hover {
+  border-color: #06B6D4;
+  color: #06B6D4;
+  background: rgba(6,182,212,0.06);
+}
+
+/* ---------- Form Inputs ---------- */
+.input-field {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #E2E8F0;
+  transition: all 0.25s;
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: #06B6D4;
+  box-shadow: 0 0 0 3px rgba(6,182,212,0.15);
+  background: rgba(6,182,212,0.04);
+}
+
+.input-field::placeholder { color: #475569; }
+
+/* ---------- Priority Badges ---------- */
+.priority-high   { background: rgba(239,68,68,0.15);  color: #F87171; border: 1px solid rgba(239,68,68,0.3); }
+.priority-medium { background: rgba(245,158,11,0.15); color: #FCD34D; border: 1px solid rgba(245,158,11,0.3); }
+.priority-low    { background: rgba(16,185,129,0.15); color: #6EE7B7; border: 1px solid rgba(16,185,129,0.3); }
+
+/* ---------- Status Text ---------- */
+.status-open     { color: #F97316; }
+.status-progress { color: #60A5FA; }
+.status-resolved { color: #34D399; }
+.status-closed   { color: #94A3B8; }
+
+/* ---------- SLA Badges ---------- */
+.sla-ok     { background: rgba(16,185,129,0.15); color: #34D399; }
+.sla-warn   { background: rgba(245,158,11,0.15); color: #FCD34D; }
+.sla-breach { background: rgba(239,68,68,0.15);  color: #F87171; }
+
+/* ---------- Complaint Timeline ---------- */
+.timeline-node {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.timeline-node.active {
+  box-shadow: 0 0 0 4px rgba(6,182,212,0.2);
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(6,182,212,0.2); }
+  50%      { box-shadow: 0 0 0 8px rgba(6,182,212,0.4); }
+}
+
+/* ---------- Sidebar Items ---------- */
+.sidebar-item { transition: all 0.2s; cursor: pointer; }
+.sidebar-item:hover { background: rgba(255,255,255,0.05); color: #E2E8F0; }
+
+.sidebar-item.active {
+  background: linear-gradient(135deg, rgba(6,182,212,0.18), rgba(59,130,246,0.12));
+  color: #06B6D4;
+  font-weight: 500;
+}
+
+.sidebar-item.active .sidebar-icon { color: #06B6D4; }
+
+/* ---------- KPI Cards ---------- */
+.kpi-card { transition: all 0.3s; }
+.kpi-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(6,182,212,0.3);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+/* ---------- Feature Cards ---------- */
+.feature-card { transition: all 0.3s; }
+.feature-card:hover { background: rgba(255,255,255,0.07); transform: translateY(-4px); }
+.feature-card:hover .feature-icon { transform: scale(1.1); }
+.feature-icon { transition: transform 0.3s; }
+
+/* ---------- Map Grid (Submission Page) ---------- */
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  grid-template-rows: repeat(12, 1fr);
+  gap: 2px;
+}
+
+.map-cell {
+  border-radius: 2px;
+  animation: heatIn 0.6s ease both;
+}
+
+@keyframes heatIn {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ---------- City Skyline ---------- */
+.skyline-container {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 180px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ---------- Submit / Check Animation ---------- */
+@keyframes checkBounce {
+  0%   { transform: scale(0) rotate(-10deg); }
+  70%  { transform: scale(1.2) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.check-bounce { animation: checkBounce 0.6s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+/* ---------- Tooltip ---------- */
+.tooltip { position: relative; }
+
+.tooltip:hover .tooltip-text {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.tooltip-text {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  background: #1E293B;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #E2E8F0;
+  font-size: 0.72rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s;
+  z-index: 50;
+}
+
+/* ---------- Leaderboard Rows ---------- */
+.lb-row { transition: all 0.2s; }
+.lb-row:hover { background: rgba(255,255,255,0.04); }
+
+/* ---------- Drag & Drop Upload Zone ---------- */
+.drop-zone {
+  border: 2px dashed rgba(255,255,255,0.15);
+  transition: all 0.3s;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over {
+  border-color: #06B6D4;
+  background: rgba(6,182,212,0.06);
+}
+
+/* ---------- Map Complaint Dots ---------- */
+.map-complaint-dot {
+  position: absolute;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.map-complaint-dot:hover { transform: scale(2); z-index: 10; }
+
+.map-complaint-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  animation: ping 1.5s cubic-bezier(0,0,0.2,1) infinite;
+}
+
+@keyframes ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+.dot-red::after   { background: rgba(239,68,68,0.4); }
+.dot-amber::after { background: rgba(245,158,11,0.4); }
+.dot-green::after { background: rgba(16,185,129,0.4); }
+
+/* ---------- Animate-slide-up utility ---------- */
+.animate-slide-up { animation: slideUp 0.6s ease both; }
+.animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4,0,0.6,1) infinite; }
