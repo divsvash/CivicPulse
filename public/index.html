@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CivicPulse — Smart City Intelligence</title>
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+
+<!-- Tailwind CSS CDN (config injected via app.js before this tag) -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Custom Styles -->
+<link rel="stylesheet" href="styles.css"/>
+
+<!-- Alpine.js (deferred so DOM is ready) -->
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- App Logic -->
+<script src="app.js"></script>
+</head>
+
+<body x-data="app()" x-init="init()" class="min-h-screen">
+
+<!-- ======================== TOAST STACK ======================== -->
+<div class="fixed bottom-6 right-6 z-[200] flex flex-col gap-2 pointer-events-none">
+  <template x-for="t in toasts" :key="t.id">
+    <div x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-4"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-end="opacity-0 translate-y-2"
+         class="pointer-events-auto glass-dark rounded-xl px-4 py-3 flex items-center gap-3 min-w-[260px] shadow-float border"
+         :class="t.type==='error' ? 'border-red-500/30' : t.type==='info' ? 'border-slate-500/30' : 'border-cyan-500/30'">
+      <span x-text="t.type==='error'?'❌':t.type==='info'?'ℹ️':'✅'"></span>
+      <span class="text-sm text-slate-200 flex-1" x-text="t.msg"></span>
+    </div>
+  </template>
+</div>
+
+<!-- ======================== LOGIN MODAL ======================== -->
+<div x-show="showLogin" x-transition class="fixed inset-0 z-[150] flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showLogin=false"></div>
+  <div class="relative glass-dark rounded-2xl p-8 w-full max-w-md border border-white/10 shadow-float">
+    <div class="absolute inset-x-[25%] top-0 h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent"></div>
+    <h2 class="font-syne font-bold text-2xl text-white mb-1">Welcome back</h2>
+    <p class="text-slate-500 text-sm mb-6">Sign in to your CivicPulse account</p>
+
+    <div x-show="authError" class="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm" x-text="authError"></div>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Email</label>
+        <input type="email" x-model="loginForm.email" @keydown.enter="doLogin()" placeholder="you@example.com"
+               class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Password</label>
+        <input type="password" x-model="loginForm.password" @keydown.enter="doLogin()" placeholder="••••••••"
+               class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+      </div>
+      <button @click="doLogin()" :disabled="authLoading"
+              class="btn-primary w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+        <svg x-show="authLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        <span x-text="authLoading ? 'Signing in...' : 'Sign In'"></span>
+      </button>
+    </div>
+    <p class="text-center text-sm text-slate-500 mt-5">
+      No account?
+      <button @click="showLogin=false;showRegister=true;authError=''" class="text-cyan-400 hover:underline">Register here</button>
+    </p>
+    <div class="mt-4 pt-4 border-t border-white/[0.06]">
+      <p class="text-xs text-slate-600 text-center mb-2">Demo credentials</p>
+      <div class="grid grid-cols-3 gap-2">
+        <button @click="loginForm={email:'admin@civicpulse.in',password:'Admin@123'}" class="text-xs glass px-2 py-1.5 rounded-lg text-slate-400 hover:text-cyan-400 transition-colors">Admin</button>
+        <button @click="loginForm={email:'ravi@civicpulse.in',password:'Officer@123'}" class="text-xs glass px-2 py-1.5 rounded-lg text-slate-400 hover:text-cyan-400 transition-colors">Officer</button>
+        <button @click="loginForm={email:'anjali@example.com',password:'Citizen@123'}" class="text-xs glass px-2 py-1.5 rounded-lg text-slate-400 hover:text-cyan-400 transition-colors">Citizen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== REGISTER MODAL ======================== -->
+<div x-show="showRegister" x-transition class="fixed inset-0 z-[150] flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showRegister=false"></div>
+  <div class="relative glass-dark rounded-2xl p-8 w-full max-w-md border border-white/10 shadow-float">
+    <div class="absolute inset-x-[25%] top-0 h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent"></div>
+    <h2 class="font-syne font-bold text-2xl text-white mb-1">Create account</h2>
+    <p class="text-slate-500 text-sm mb-6">Join CivicPulse as a citizen</p>
+
+    <div x-show="authError" class="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm" x-text="authError"></div>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Full Name</label>
+        <input type="text" x-model="registerForm.name" placeholder="Anjali Sharma"
+               class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Email</label>
+        <input type="email" x-model="registerForm.email" placeholder="you@example.com"
+               class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Password</label>
+          <input type="password" x-model="registerForm.password" placeholder="Min 8 chars"
+                 class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Phone</label>
+          <input type="tel" x-model="registerForm.phone" placeholder="9876543210"
+                 class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+        </div>
+      </div>
+      <button @click="doRegister()" :disabled="authLoading"
+              class="btn-primary w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+        <svg x-show="authLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        <span x-text="authLoading ? 'Creating...' : 'Create Account'"></span>
+      </button>
+    </div>
+    <p class="text-center text-sm text-slate-500 mt-5">
+      Have an account?
+      <button @click="showRegister=false;showLogin=true;authError=''" class="text-cyan-400 hover:underline">Sign in</button>
+    </p>
+  </div>
+</div>
+
+
+<!-- ======================== BACKGROUND LAYERS ======================== -->
+<div class="mesh-blob w-[700px] h-[700px] bg-cyan-500/10  top-[-200px]  left-[-200px]"></div>
+<div class="mesh-blob w-[500px] h-[500px] bg-blue-500/8   bottom-[-100px] right-[-100px]"  style="animation-delay:-8s;animation-duration:25s"></div>
+<div class="mesh-blob w-[400px] h-[400px] bg-violet-500/6 top-[40%]     left-[45%]"        style="animation-delay:-4s;animation-duration:18s"></div>
+<div class="grid-overlay"></div>
+
+<!-- Floating Ambient Dots -->
+<div class="float-dot w-[5px] h-[5px] top-[22%] left-[8%]  bg-cyan-400"   style="--dur:3.5s;--delay:0s;  box-shadow:0 0 12px #06B6D4;"></div>
+<div class="float-dot w-[4px] h-[4px] top-[38%] left-[78%] bg-blue-400"   style="--dur:4.5s;--delay:1s;  box-shadow:0 0 10px #3B82F6;"></div>
+<div class="float-dot w-[6px] h-[6px] top-[63%] left-[18%] bg-cyan-400/70" style="--dur:3s;  --delay:0.5s;box-shadow:0 0 14px #06B6D4;"></div>
+<div class="float-dot w-[3px] h-[3px] top-[72%] left-[62%] bg-red-400"    style="--dur:5s;  --delay:2s;  box-shadow:0 0 8px  #EF4444;"></div>
+<div class="float-dot w-[5px] h-[5px] top-[14%] left-[88%] bg-emerald-400" style="--dur:4s;  --delay:1.5s;box-shadow:0 0 12px #10B981;"></div>
+
+<!-- ======================== NAVBAR ======================== -->
+<nav class="fixed top-0 left-0 right-0 z-50 glass-dark">
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+
+    <!-- Logo -->
+    <button @click="page='landing'" class="flex items-center gap-2.5 font-syne font-bold text-lg tracking-tight">
+      <div class="live-dot"></div>
+      <span class="text-white">Civic<span class="gradient-text">Pulse</span></span>
+    </button>
+
+    <!-- Nav Links (desktop) -->
+    <div class="hidden md:flex items-center gap-8">
+      <button @click="page='landing'"   :class="{'active':page==='landing'}"   class="nav-link text-sm text-slate-400 hover:text-white transition-colors">Platform</button>
+      <button @click="page='dashboard'" :class="{'active':page==='dashboard'}" class="nav-link text-sm text-slate-400 hover:text-white transition-colors">Dashboard</button>
+      <button @click="page='submit'"    :class="{'active':page==='submit'}"    class="nav-link text-sm text-slate-400 hover:text-white transition-colors">Report Issue</button>
+      <button @click="page='tracker'"   :class="{'active':page==='tracker'}"   class="nav-link text-sm text-slate-400 hover:text-white transition-colors">Track</button>
+    </div>
+
+    <!-- CTA + Notification Bell -->
+    <div class="flex items-center gap-3">
+
+      <!-- Bell -->
+      <button class="relative p-2 rounded-lg glass hover:border-cyan-500/30 transition-all" @click="showNotifs=!showNotifs">
+        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+        </svg>
+        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" x-show="unreadCount > 0"></span>
+      </button>
+
+      <!-- Notification Dropdown -->
+      <div x-show="showNotifs" @click.outside="showNotifs=false" x-transition
+           class="absolute top-16 right-32 w-72 glass-dark rounded-xl p-3 z-50 shadow-float">
+        <div class="flex items-center justify-between mb-2 px-2">
+          <span class="text-xs text-slate-500 uppercase tracking-widest">Notifications</span>
+          <button @click="markAllRead()" class="text-xs text-cyan-400 hover:text-cyan-300">Mark all read</button>
+        </div>
+        <template x-for="n in notifications" :key="n.id">
+          <div class="flex items-start gap-3 p-2 rounded-lg cursor-pointer transition-colors"
+               :class="n.is_read ? 'opacity-60' : 'hover:bg-white/5'"
+               @click="markNotifRead(n.id)">
+            <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+                 :class="n.type==='sla_breach'?'bg-red-500':n.type==='sla_warn'?'bg-amber-500':'bg-cyan-500'"></div>
+            <div class="flex-1">
+              <div class="text-sm text-slate-200" x-text="n.title"></div>
+              <div class="text-xs text-slate-500 mt-0.5" x-text="new Date(n.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})"></div>
+            </div>
+            <div x-show="!n.is_read" class="w-1.5 h-1.5 rounded-full bg-cyan-400 mt-1.5 flex-shrink-0"></div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Report Issue CTA -->
+      <!-- Logged-in: user chip + logout -->
+      <div x-show="isLoggedIn" class="hidden sm:flex items-center gap-3">
+        <div class="flex items-center gap-2 glass px-3 py-1.5 rounded-lg">
+          <div class="w-5 h-5 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white" x-text="user?.name?.charAt(0)"></div>
+          <span class="text-xs text-slate-300" x-text="user?.name?.split(' ')[0]"></span>
+          <span class="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-medium" x-text="user?.role"></span>
+        </div>
+        <button @click="page='submit'" class="btn-primary px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Report
+        </button>
+        <button @click="doLogout()" class="btn-ghost px-3 py-2 rounded-lg text-sm">Sign Out</button>
+      </div>
+      <!-- Logged-out: login + register -->
+      <div x-show="!isLoggedIn" class="hidden sm:flex items-center gap-2">
+        <button @click="showLogin=true;authError=''" class="btn-ghost px-4 py-2 rounded-lg text-sm">Sign In</button>
+        <button @click="showRegister=true;authError=''" class="btn-primary px-4 py-2 rounded-lg text-sm">Register</button>
+      </div>
+
+      <!-- Mobile Hamburger -->
+      <button class="md:hidden p-2 glass rounded-lg" @click="mobileMenu=!mobileMenu">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Menu -->
+  <div x-show="mobileMenu" x-transition class="md:hidden glass-dark border-t border-white/5 px-6 py-4 space-y-2">
+    <button @click="page='landing';mobileMenu=false"   class="block w-full text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/5">Platform</button>
+    <button @click="page='dashboard';mobileMenu=false" class="block w-full text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/5">Dashboard</button>
+    <button @click="page='submit';mobileMenu=false"    class="block w-full text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/5">Report Issue</button>
+    <button @click="page='tracker';mobileMenu=false"   class="block w-full text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/5">Track Complaint</button>
+  </div>
+</nav>
+
+<!-- ======================== PAGES ======================== -->
+
+<!-- ===== PAGE: LANDING ===== -->
+<div x-show="page==='landing'" class="page-enter relative z-10">
+
+  <!-- HERO -->
+  <section class="relative min-h-screen flex flex-col items-center justify-center text-center px-6 pt-24 pb-16">
+
+    <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-xs font-medium tracking-widest uppercase mb-10 animate-slide-up">
+      <div class="live-dot scale-75"></div>
+      Live City Intelligence Platform
+    </div>
+
+    <h1 class="font-syne font-extrabold text-5xl sm:text-6xl lg:text-7xl tracking-tight leading-[1.05] mb-6"
+        style="animation:slideUp 0.7s 0.1s ease both;opacity:0;animation-fill-mode:forwards">
+      Reimagining Urban<br>
+      <span class="gradient-text">Complaint Management</span>
+    </h1>
+
+    <p class="text-slate-400 text-sm tracking-[0.18em] uppercase font-light mb-12"
+       style="animation:slideUp 0.7s 0.2s ease both;opacity:0;animation-fill-mode:forwards">
+      Track <span class="text-slate-600 mx-2">·</span> Resolve
+      <span class="text-slate-600 mx-2">·</span> Analyze
+      <span class="text-slate-600 mx-2">·</span> Transform
+    </p>
+
+    <div class="flex gap-4 justify-center flex-wrap mb-16"
+         style="animation:slideUp 0.7s 0.3s ease both;opacity:0;animation-fill-mode:forwards">
+      <button @click="page='submit'"    class="btn-primary px-8 py-3.5 rounded-xl text-base flex items-center gap-2">🚨 Report an Issue</button>
+      <button @click="page='dashboard'" class="btn-ghost   px-8 py-3.5 rounded-xl text-base flex items-center gap-2">📊 View Analytics</button>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="glass rounded-2xl overflow-hidden flex divide-x divide-white/[0.06] max-w-3xl w-full"
+         style="animation:slideUp 0.7s 0.4s ease both;opacity:0;animation-fill-mode:forwards">
+      <template x-for="stat in stats" :key="stat.label">
+        <div class="flex-1 px-8 py-6 text-center">
+          <div class="font-syne font-bold text-2xl text-white" x-text="stat.display"></div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mt-1" x-text="stat.label"></div>
+        </div>
+      </template>
+    </div>
+
+    <!-- City Skyline SVG -->
+    <div class="skyline-container">
+      <svg viewBox="0 0 1440 180" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
+        <defs>
+          <linearGradient id="skyG" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%"   style="stop-color:rgba(6,182,212,0.12)"/>
+            <stop offset="100%" style="stop-color:rgba(6,182,212,0.02)"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,180 L0,140 L50,140 L50,100 L70,100 L70,65 L90,65 L90,45 L105,45 L105,65 L125,65 L125,120 L180,120 L180,85 L200,85 L200,55 L215,55 L215,38 L225,38 L225,55 L240,55 L240,85 L300,85 L300,110 L350,110 L350,75 L370,75 L370,48 L382,48 L382,35 L390,35 L390,48 L402,48 L402,75 L460,75 L460,130 L510,130 L510,90 L530,90 L530,58 L545,58 L545,40 L555,40 L555,58 L570,58 L570,90 L630,90 L630,110 L680,110 L680,72 L698,72 L698,48 L710,48 L710,35 L720,35 L720,48 L732,48 L732,72 L790,72 L790,100 L840,100 L840,65 L858,65 L858,42 L870,42 L870,28 L878,28 L878,42 L890,42 L890,65 L950,65 L950,120 L1000,120 L1000,82 L1018,82 L1018,55 L1030,55 L1030,40 L1040,40 L1040,55 L1055,55 L1055,82 L1110,82 L1110,140 L1160,140 L1160,105 L1178,105 L1178,70 L1190,70 L1190,52 L1200,52 L1200,70 L1212,70 L1212,105 L1270,105 L1270,125 L1310,125 L1310,88 L1322,88 L1440,88 L1440,180 Z" fill="url(#skyG)"/>
+        <rect x="94"   y="50" width="5" height="5" fill="rgba(6,182,212,0.7)"  rx="1"/>
+        <rect x="218"  y="42" width="4" height="4" fill="rgba(59,130,246,0.8)" rx="1"/>
+        <rect x="385"  y="38" width="4" height="4" fill="rgba(6,182,212,0.9)"  rx="1"/>
+        <rect x="547"  y="44" width="4" height="4" fill="rgba(59,130,246,0.7)" rx="1"/>
+        <rect x="713"  y="38" width="4" height="4" fill="rgba(6,182,212,1)"    rx="1"/>
+        <rect x="872"  y="32" width="4" height="4" fill="rgba(59,130,246,0.9)" rx="1"/>
+        <rect x="1033" y="43" width="4" height="4" fill="rgba(6,182,212,0.8)"  rx="1"/>
+        <rect x="1193" y="55" width="4" height="4" fill="rgba(59,130,246,0.7)" rx="1"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="relative z-10 max-w-7xl mx-auto px-6 py-24">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+      <div>
+        <div class="text-xs text-cyan-400 tracking-widest uppercase font-semibold mb-3">Platform Capabilities</div>
+        <h2 class="font-syne font-bold text-4xl lg:text-5xl tracking-tight">
+          Everything your city needs,<br><span class="gradient-text">one intelligent system</span>
+        </h2>
+      </div>
+      <p class="text-slate-400 text-sm leading-relaxed max-w-xs">From pothole reports to SLA breach alerts — track, act, and analyze with full transparency.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-white/[0.06] rounded-2xl overflow-hidden border border-white/[0.06]">
+      <template x-for="feat in features" :key="feat.title">
+        <div class="feature-card bg-white/[0.025] p-10 relative overflow-hidden group">
+          <div class="feature-icon w-12 h-12 rounded-xl flex items-center justify-center text-xl mb-5" :class="feat.iconBg">
+            <span x-text="feat.icon"></span>
+          </div>
+          <h3 class="font-syne font-bold text-base mb-3 text-white" x-text="feat.title"></h3>
+          <p class="text-slate-500 text-sm leading-relaxed" x-text="feat.desc"></p>
+          <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" :class="feat.hoverGlow"></div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- STATUS LIFECYCLE -->
+  <section class="relative z-10 max-w-5xl mx-auto px-6 pb-24">
+    <div class="text-center mb-14">
+      <div class="text-xs text-cyan-400 tracking-widest uppercase font-semibold mb-3">Complaint Lifecycle</div>
+      <h2 class="font-syne font-bold text-4xl tracking-tight">Real-time status, <span class="gradient-text">beautifully tracked</span></h2>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <template x-for="st in statusCards" :key="st.name">
+        <div class="glass rounded-2xl p-6 text-center hover:-translate-y-2 transition-transform duration-300 group relative overflow-hidden">
+          <div class="text-3xl mb-3" x-text="st.icon"></div>
+          <div class="font-syne font-bold text-sm mb-2" :class="st.color" x-text="st.name"></div>
+          <div class="text-slate-500 text-xs leading-relaxed" x-text="st.desc"></div>
+          <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full opacity-0 group-hover:opacity-30 transition-opacity blur-xl" :class="st.glow"></div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- DEPARTMENT LEADERBOARD PREVIEW -->
+  <section class="relative z-10 max-w-5xl mx-auto px-6 pb-24">
+    <div class="flex items-end justify-between mb-10">
+      <div>
+        <div class="text-xs text-cyan-400 tracking-widest uppercase font-semibold mb-3">Department Rankings</div>
+        <h2 class="font-syne font-bold text-4xl tracking-tight">Who's performing <span class="gradient-text">best?</span></h2>
+      </div>
+      <button @click="page='dashboard'" class="btn-ghost px-4 py-2 rounded-lg text-sm">View all →</button>
+    </div>
+    <div class="glass rounded-2xl overflow-hidden">
+      <div class="grid grid-cols-12 text-xs text-slate-500 uppercase tracking-widest px-5 py-3 border-b border-white/[0.06]">
+        <div class="col-span-1">#</div>
+        <div class="col-span-4">Department</div>
+        <div class="col-span-2 text-center">Resolved</div>
+        <div class="col-span-2 text-center">Avg Time</div>
+        <div class="col-span-2 text-center">Rating</div>
+        <div class="col-span-1 text-center">SLA</div>
+      </div>
+      <template x-for="(dept, i) in departments" :key="dept.name">
+        <div class="lb-row grid grid-cols-12 items-center px-5 py-4 border-b border-white/[0.04] last:border-0">
+          <div class="col-span-1 font-syne font-bold"
+               :class="i===0?'text-amber-400':i===1?'text-slate-300':i===2?'text-orange-600':'text-slate-600'"
+               x-text="i+1"></div>
+          <div class="col-span-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm" :class="dept.iconBg" x-text="dept.icon"></div>
+            <span class="text-sm text-slate-200 font-medium" x-text="dept.name"></span>
+          </div>
+          <div class="col-span-2 text-center text-sm text-slate-300 font-medium" x-text="dept.resolved"></div>
+          <div class="col-span-2 text-center text-sm text-slate-400" x-text="dept.avgTime"></div>
+          <div class="col-span-2 text-center">
+            <span class="text-amber-400 text-sm">★</span>
+            <span class="text-sm text-slate-300 ml-1" x-text="dept.rating"></span>
+          </div>
+          <div class="col-span-1 text-center">
+            <span class="text-xs px-2 py-0.5 rounded-full" :class="dept.sla < 5 ? 'sla-ok':'sla-warn'" x-text="dept.sla+'%'"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="relative z-10 max-w-4xl mx-auto px-6 pb-24">
+    <div class="glass rounded-3xl p-16 text-center relative overflow-hidden">
+      <div class="absolute inset-x-[20%] top-0 h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent"></div>
+      <div class="absolute inset-0 bg-gradient-radial from-cyan-500/5 via-transparent to-transparent pointer-events-none"></div>
+      <div class="text-xs text-cyan-400 tracking-widest uppercase font-semibold mb-4">Get Started Today</div>
+      <h2 class="font-syne font-extrabold text-4xl lg:text-5xl tracking-tight mb-4">
+        Your city deserves<br><span class="gradient-text">better infrastructure</span>
+      </h2>
+      <p class="text-slate-400 mb-10 max-w-md mx-auto">Join municipal corporations using CivicPulse to resolve issues faster, smarter, and transparently.</p>
+      <div class="flex gap-4 justify-center flex-wrap">
+        <button @click="page='submit'" class="btn-primary px-8 py-3.5 rounded-xl text-base">🚀 Get Started Free</button>
+        <button class="btn-ghost px-8 py-3.5 rounded-xl text-base">📞 Request Demo</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="relative z-10 border-t border-white/[0.06] px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-4 max-w-7xl mx-auto">
+    <div class="font-syne font-bold">⚡ CivicPulse</div>
+    <div class="flex gap-6 text-sm text-slate-500">
+      <a href="#" class="hover:text-slate-300 transition-colors">Platform</a>
+      <a href="#" class="hover:text-slate-300 transition-colors">Privacy</a>
+      <a href="#" class="hover:text-slate-300 transition-colors">Contact</a>
+      <a href="#" class="hover:text-slate-300 transition-colors">Docs</a>
+    </div>
+    <div class="text-xs text-slate-600">© 2026 CivicPulse. Smart cities, better lives.</div>
+  </footer>
+</div>
+
+<!-- ===== PAGE: COMPLAINT SUBMISSION ===== -->
+<div x-show="page==='submit'" class="page-enter relative z-10 min-h-screen pt-20">
+  <div class="max-w-7xl mx-auto px-6 py-12">
+    <div class="mb-10">
+      <div class="text-xs text-cyan-400 tracking-widest uppercase font-semibold mb-2">Submit a Complaint</div>
+      <h1 class="font-syne font-extrabold text-4xl tracking-tight">Report an Issue <span class="gradient-text">near you</span></h1>
+      <p class="text-slate-400 mt-2 text-sm">Fill in the details below. Your complaint will be assigned to the relevant department automatically.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Left – Interactive Map -->
+      <div class="glass rounded-2xl overflow-hidden relative" style="min-height:520px;">
+        <div class="absolute inset-0 bg-navy/50"></div>
+        <!-- Map grid background -->
+        <div class="absolute inset-0 p-4">
+          <div class="map-grid h-full opacity-30">
+            <template x-for="i in 240" :key="i">
+              <div class="map-cell" :style="'background:'+mapCellColor(i)+';animation-delay:'+(i*0.01)+'s'"></div>
+            </template>
+          </div>
+        </div>
+        <!-- Centre label -->
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div class="text-center">
+            <div class="text-slate-500 text-xs uppercase tracking-widest mb-2">Interactive Map</div>
+            <div class="font-syne font-bold text-slate-300 text-lg">Meerut Municipal Zone</div>
+          </div>
+        </div>
+        <!-- Complaint dots -->
+        <template x-for="dot in mapDots" :key="dot.id">
+          <div class="map-complaint-dot w-3 h-3" :class="'dot-'+dot.color" :style="'top:'+dot.top+';left:'+dot.left">
+            <div class="w-full h-full rounded-full" :style="'background:'+dot.bg+';box-shadow:0 0 8px '+dot.bg"></div>
+          </div>
+        </template>
+        <!-- Zone labels -->
+        <div class="absolute top-4 left-4"><div class="glass px-2 py-1 rounded text-xs text-slate-300">Zone 1</div></div>
+        <div class="absolute top-4 right-4"><div class="glass px-2 py-1 rounded text-xs text-slate-300">Zone 2</div></div>
+        <div class="absolute bottom-20 left-4"><div class="glass px-2 py-1 rounded text-xs text-slate-300">Zone 3</div></div>
+        <div class="absolute bottom-20 right-4"><div class="glass px-2 py-1 rounded text-xs text-slate-300">Zone 4</div></div>
+        <!-- Click marker -->
+        <div x-show="mapClicked" class="absolute pointer-events-none text-2xl" :style="'top:'+clickY+'px;left:'+clickX+'px;transform:translate(-50%,-100%)'">📍</div>
+        <!-- Clickable overlay -->
+        <div class="absolute inset-0 cursor-crosshair" @click="handleMapClick($event)"></div>
+        <!-- SLA Preview -->
+        <div class="absolute bottom-4 left-4 right-4">
+          <div class="glass rounded-xl px-4 py-3 flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-500 uppercase tracking-wider mb-0.5">Estimated SLA</div>
+              <div class="font-syne font-bold text-white text-lg" x-text="slaTime"></div>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-slow"></div>
+              <span class="text-xs text-emerald-400">On Track</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right – Form -->
+      <div class="glass rounded-2xl p-8" x-show="!submitSuccess">
+        <h2 class="font-syne font-bold text-xl mb-6 text-white">Complaint Details</h2>
+        <div class="space-y-5">
+
+          <!-- Category picker -->
+          <div>
+            <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Category</label>
+            <div class="grid grid-cols-3 gap-2">
+              <template x-for="cat in categories" :key="cat.val">
+                <button @click="form.category=cat.val;updateSLA()"
+                  class="flex flex-col items-center gap-1 p-3 rounded-xl border transition-all text-xs font-medium"
+                  :class="form.category===cat.val
+                    ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400'
+                    : 'border-white/10 bg-white/[0.02] text-slate-400 hover:border-white/20'">
+                  <span class="text-lg" x-text="cat.icon"></span>
+                  <span x-text="cat.label"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <!-- Title -->
+          <div>
+            <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Issue Title</label>
+            <input type="text" x-model="form.title" placeholder="Brief description of the issue..."
+                   class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+          </div>
+
+          <!-- Description -->
+          <div>
+            <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Description</label>
+            <textarea x-model="form.description" rows="3" placeholder="Provide more details..."
+                      class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none"></textarea>
+          </div>
+
+          <!-- Priority + Zone -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Priority</label>
+              <select x-model="form.priority" @change="updateSLA()" class="input-field w-full px-4 py-3 rounded-xl text-sm appearance-none cursor-pointer">
+                <option value="low">🟢 Low</option>
+                <option value="medium">🟡 Medium</option>
+                <option value="high">🔴 High</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Zone</label>
+              <select x-model="form.zone_id" class="input-field w-full px-4 py-3 rounded-xl text-sm appearance-none cursor-pointer">
+                <template x-for="z in zones" :key="z.id">
+                  <option :value="z.id" x-text="z.name"></option>
+                </template>
+              </select>
+            </div>
+          </div>
+
+          <!-- Drag & Drop Upload -->
+          <div>
+            <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Attach Photo</label>
+            <div class="drop-zone rounded-xl p-6 text-center cursor-pointer"
+                 @dragover.prevent="isDragOver=true"
+                 @dragleave="isDragOver=false"
+                 @drop.prevent="handleDrop($event)"
+                 :class="isDragOver?'drag-over':''"
+                 @click="$refs.fileInput.click()">
+              <input type="file" x-ref="fileInput" class="hidden" accept="image/*" @change="handleFileSelect($event)"/>
+              <div x-show="!uploadedFile">
+                <div class="text-2xl mb-2">📸</div>
+                <div class="text-sm text-slate-400">Drag & drop or <span class="text-cyan-400">browse</span></div>
+                <div class="text-xs text-slate-600 mt-1">JPG, PNG up to 10 MB</div>
+              </div>
+              <div x-show="uploadedFile" class="flex items-center justify-center gap-3">
+                <div class="text-emerald-400 text-xl">✅</div>
+                <div class="text-sm text-slate-300" x-text="uploadedFile"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <button @click="submitComplaint()"
+                  :disabled="!form.category || !form.title"
+                  class="btn-primary w-full py-4 rounded-xl text-base font-semibold flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
+                  :class="isSubmitting?'opacity-70 cursor-wait':''">
+            <span x-show="!isSubmitting">🚨 Submit Complaint</span>
+            <span x-show="isSubmitting" class="flex items-center gap-2">
+              <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Submitting...
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Success State -->
+      <div x-show="submitSuccess" class="glass rounded-2xl p-8 flex flex-col items-center justify-center text-center" style="min-height:400px;">
+        <div class="text-6xl check-bounce mb-6">✅</div>
+        <h3 class="font-syne font-bold text-2xl text-white mb-3">Complaint Submitted!</h3>
+        <p class="text-slate-400 mb-2">Your complaint ID is</p>
+        <div class="font-syne font-bold text-cyan-400 text-2xl mb-6" x-text="complaintNo || ('#CP-' + complaintId)"></div>
+        <p class="text-slate-500 text-sm mb-8">Expected resolution within <span class="text-white font-medium" x-text="slaTime"></span></p>
+        <div class="flex gap-3">
+          <button @click="page='tracker'" class="btn-primary px-6 py-2.5 rounded-xl text-sm">Track Complaint →</button>
+          <button @click="resetForm()"    class="btn-ghost   px-6 py-2.5 rounded-xl text-sm">Submit Another</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE: ADMIN DASHBOARD ===== -->
+<div x-show="page==='dashboard'" class="page-enter relative z-10 min-h-screen pt-16">
+  <div class="flex">
+
+    <!-- Sidebar -->
+    <aside class="hidden md:flex flex-col w-56 min-h-[calc(100vh-64px)] glass-dark border-r border-white/[0.06] fixed top-16 left-0 pt-6 pb-4">
+      <div class="px-4 mb-6">
+        <div class="text-xs text-slate-600 uppercase tracking-widest px-3 mb-2">Main</div>
+        <template x-for="item in sidebarItems" :key="item.label">
+          <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 text-sm mb-1"
+               :class="activeSidebar===item.label?'active':''"
+               @click="activeSidebar=item.label">
+            <span class="sidebar-icon text-base" x-text="item.icon"></span>
+            <span x-text="item.label"></span>
+          </div>
+        </template>
+      </div>
+      <div class="px-4">
+        <div class="text-xs text-slate-600 uppercase tracking-widest px-3 mb-2">Manage</div>
+        <template x-for="item in sidebarManage" :key="item.label">
+          <div class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 text-sm mb-1"
+               :class="activeSidebar===item.label?'active':''"
+               @click="activeSidebar=item.label">
+            <span class="sidebar-icon text-base" x-text="item.icon"></span>
+            <span x-text="item.label"></span>
+          </div>
+        </template>
+      </div>
+      <!-- AI Insight card -->
+      <div class="mt-auto px-4">
+        <div class="rounded-xl p-3 bg-violet-500/10 border border-violet-500/20">
+          <div class="text-xs text-violet-300 font-semibold mb-1">🔮 AI Insight</div>
+          <template x-if="aiInsights.length">
+            <div class="text-xs text-violet-200/70 leading-relaxed" x-text="aiInsights[0].message"></div>
+          </template>
+          <template x-if="!aiInsights.length">
+            <div class="text-xs text-violet-200/70 leading-relaxed">No emerging trends detected today.</div>
+          </template>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 md:ml-56 p-6 pt-8">
+
+      <!-- Shared Header -->
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <div class="text-xs text-cyan-400 tracking-widest uppercase font-semibold mb-1" x-text="activeSidebar"></div>
+          <h1 class="font-syne font-extrabold text-2xl text-white" x-text="activeSidebar === 'Dashboard' ? ('Good morning, ' + (user?.name?.split(' ')[0] || 'Admin') + ' 👋') : activeSidebar"></h1>
+          <p class="text-slate-500 text-sm mt-1" x-text="new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) + ' · ' + totalComplaints + ' total'"></p>
+        </div>
+        <button @click="page='submit'" class="btn-primary px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          New Report
+        </button>
+      </div>
+
+      <!-- ════ DASHBOARD VIEW ════ -->
+      <div x-show="activeSidebar === 'Dashboard'">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <template x-for="kpi in kpis" :key="kpi.label">
+            <div class="kpi-card glass rounded-2xl p-5">
+              <div class="flex items-start justify-between mb-3">
+                <div class="text-xs text-slate-500 uppercase tracking-widest" x-text="kpi.label"></div>
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="kpi.up?'sla-ok':'sla-breach'" x-text="kpi.delta"></span>
+              </div>
+              <div class="font-syne font-bold text-2xl" :class="kpi.color||'text-white'" x-text="kpi.value"></div>
+              <div class="mt-3 h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-1000" :class="kpi.barColor" :style="'width:'+kpi.bar+'%'"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          <div class="lg:col-span-2 glass rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="text-xs text-slate-500 uppercase tracking-widest">Monthly Complaints</div>
+              <div class="flex gap-2">
+                <button class="text-xs px-3 py-1 rounded-lg bg-cyan-500/20 text-cyan-400">6M</button>
+                <button class="text-xs px-3 py-1 rounded-lg text-slate-500 hover:bg-white/5">12M</button>
+              </div>
+            </div>
+            <canvas id="barChart" height="160"></canvas>
+          </div>
+          <div class="glass rounded-2xl p-5">
+            <div class="text-xs text-slate-500 uppercase tracking-widest mb-4">By Category</div>
+            <canvas id="donutChart" height="160"></canvas>
+            <div class="mt-4 space-y-2">
+              <template x-for="cat in chartCategories" :key="cat.label">
+                <div class="flex items-center justify-between text-xs">
+                  <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full" :style="'background:'+cat.color"></div>
+                    <span class="text-slate-400" x-text="cat.label"></span>
+                  </div>
+                  <span class="text-slate-300 font-medium" x-text="cat.pct"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 glass rounded-2xl overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <div class="text-sm font-medium text-white">Recent Complaints</div>
+              <div class="flex gap-3 items-center">
+                <input type="text" x-model="searchQuery" placeholder="Search..." class="input-field px-3 py-1.5 rounded-lg text-xs w-36"/>
+                <select x-model="filterStatus" class="input-field px-3 py-1.5 rounded-lg text-xs cursor-pointer">
+                  <option value="">All Status</option>
+                  <option value="open">Open</option>
+                  <option value="progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              </div>
+            </div>
+            <div x-show="loading.complaints" class="flex items-center justify-center py-12 gap-3">
+              <svg class="animate-spin w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              <span class="text-sm text-slate-500">Loading...</span>
+            </div>
+            <div x-show="!loading.complaints && !complaints.length" class="text-center py-12 text-slate-600 text-sm">No complaints found.</div>
+            <div class="overflow-x-auto" x-show="!loading.complaints && complaints.length">
+              <table class="w-full text-xs">
+                <thead><tr class="text-slate-600 uppercase tracking-widest border-b border-white/[0.04]">
+                  <th class="text-left px-5 py-3">ID</th><th class="text-left px-3 py-3">Issue</th>
+                  <th class="text-left px-3 py-3">Zone</th><th class="text-center px-3 py-3">Priority</th>
+                  <th class="text-center px-3 py-3">Status</th><th class="text-center px-3 py-3">SLA</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="c in complaints" :key="c.id">
+                    <tr class="lb-row border-b border-white/[0.04] last:border-0 cursor-pointer" @click="openComplaint(c)">
+                      <td class="px-5 py-3.5 text-cyan-400 font-medium" x-text="c.complaint_no||('#'+c.id)"></td>
+                      <td class="px-3 py-3.5 text-slate-300 max-w-[180px] truncate" x-text="c.title||c.issue"></td>
+                      <td class="px-3 py-3.5 text-slate-500" x-text="c.zone_name||c.zone||'—'"></td>
+                      <td class="px-3 py-3.5 text-center"><span class="px-2 py-0.5 rounded-full text-xs" :class="'priority-'+c.priority" x-text="c.priority"></span></td>
+                      <td class="px-3 py-3.5 text-center"><span class="font-medium text-xs" :class="'status-'+c.status" x-text="statusLabel(c.status)"></span></td>
+                      <td class="px-3 py-3.5 text-center"><span class="px-2 py-0.5 rounded-full text-xs" :class="slaBadgeClass(c)" x-text="slaBadgeLabel(c)"></span></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div class="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
+              <span class="text-xs text-slate-500" x-text="complaints.length+' of '+totalComplaints+' complaints'"></span>
+              <div class="flex gap-3">
+                <button @click="if(currentPage>1){currentPage--;loadComplaints()}" :disabled="currentPage<=1" class="text-xs text-slate-500 hover:text-cyan-400 disabled:opacity-30">← Prev</button>
+                <span class="text-xs text-slate-600" x-text="'Page '+currentPage"></span>
+                <button @click="currentPage++;loadComplaints()" :disabled="complaints.length < pageLimit" class="text-xs text-slate-500 hover:text-cyan-400 disabled:opacity-30">Next →</button>
+              </div>
+            </div>
+          </div>
+          <div class="glass rounded-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-white/[0.06]"><div class="text-sm font-medium text-white">Department Activity</div></div>
+            <div class="p-4 space-y-3">
+              <template x-for="dept in departments.slice(0,4)" :key="dept.id||dept.name">
+                <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-cyan-500/20 transition-colors">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span x-text="dept.icon||'🏢'" class="text-base"></span>
+                    <span class="text-xs font-medium text-slate-300 truncate" x-text="dept.name"></span>
+                    <span class="ml-auto text-xs text-amber-400 flex-shrink-0">★ <span x-text="dept.avg_rating||dept.rating||'—'"></span></span>
+                  </div>
+                  <div class="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" :style="'width:'+(dept.efficiency_pct||dept.efficiency||0)+'%'"></div>
+                  </div>
+                  <div class="flex justify-between mt-1">
+                    <span class="text-xs text-slate-600" x-text="(dept.resolved||0)+' resolved'"></span>
+                    <span class="text-xs text-slate-600" x-text="(dept.efficiency_pct||dept.efficiency||0)+'% eff.'"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="px-4 pb-4">
+              <div class="rounded-xl p-3 border border-red-500/20 bg-red-500/[0.08]">
+                <div class="text-xs font-semibold text-red-400 mb-1">🚨 SLA Violations</div>
+                <div class="text-xs text-red-300/70" x-text="(kpis.find(k=>k.label==='SLA Breaches')?.value||'0')+' complaints exceeded SLA. Escalation triggered.'"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ COMPLAINTS VIEW ════ -->
+      <div x-show="activeSidebar === 'Complaints'">
+        <div class="glass rounded-2xl overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between px-5 py-4 border-b border-white/[0.06] gap-3">
+            <div class="text-sm font-medium text-white">All Complaints</div>
+            <div class="flex gap-3 items-center flex-wrap">
+              <input type="text" x-model="searchQuery" placeholder="Search ID or title..." class="input-field px-3 py-1.5 rounded-lg text-xs w-44"/>
+              <select x-model="filterStatus" class="input-field px-3 py-1.5 rounded-lg text-xs cursor-pointer">
+                <option value="">All Status</option>
+                <option value="open">Open</option>
+                <option value="progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+              <select x-model="filterPriority" @change="currentPage=1;loadComplaints()" class="input-field px-3 py-1.5 rounded-lg text-xs cursor-pointer">
+                <option value="">All Priority</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              <select x-model="filterCategory" @change="currentPage=1;loadComplaints()" class="input-field px-3 py-1.5 rounded-lg text-xs cursor-pointer">
+                <option value="">All Category</option>
+                <option value="roads">Roads</option>
+                <option value="water">Water</option>
+                <option value="sanitation">Sanitation</option>
+                <option value="electricity">Electricity</option>
+                <option value="parks">Parks</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div x-show="loading.complaints" class="flex items-center justify-center py-16 gap-3">
+            <svg class="animate-spin w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span class="text-sm text-slate-500">Loading complaints...</span>
+          </div>
+          <div x-show="!loading.complaints && !complaints.length" class="text-center py-16 text-slate-600 text-sm">No complaints match your filters.</div>
+          <div class="overflow-x-auto" x-show="!loading.complaints && complaints.length">
+            <table class="w-full text-xs">
+              <thead><tr class="text-slate-600 uppercase tracking-widest border-b border-white/[0.04]">
+                <th class="text-left px-5 py-3">Complaint No</th>
+                <th class="text-left px-3 py-3">Issue</th>
+                <th class="text-left px-3 py-3">Zone</th>
+                <th class="text-left px-3 py-3">Department</th>
+                <th class="text-center px-3 py-3">Priority</th>
+                <th class="text-center px-3 py-3">Status</th>
+                <th class="text-center px-3 py-3">SLA</th>
+                <th class="text-center px-3 py-3">Submitted</th>
+                <th class="text-center px-3 py-3">Action</th>
+              </tr></thead>
+              <tbody>
+                <template x-for="c in complaints" :key="c.id">
+                  <tr class="lb-row border-b border-white/[0.04] last:border-0">
+                    <td class="px-5 py-3 text-cyan-400 font-medium" x-text="c.complaint_no||('#'+c.id)"></td>
+                    <td class="px-3 py-3 text-slate-300 max-w-[200px]"><div class="truncate" x-text="c.title||c.issue"></div></td>
+                    <td class="px-3 py-3 text-slate-500" x-text="c.zone_name||'—'"></td>
+                    <td class="px-3 py-3 text-slate-500 text-xs" x-text="c.department_name||'—'"></td>
+                    <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs" :class="'priority-'+c.priority" x-text="c.priority"></span></td>
+                    <td class="px-3 py-3 text-center"><span class="font-medium text-xs" :class="'status-'+c.status" x-text="statusLabel(c.status)"></span></td>
+                    <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs" :class="slaBadgeClass(c)" x-text="slaBadgeLabel(c)"></span></td>
+                    <td class="px-3 py-3 text-center text-slate-500" x-text="formatDate(c.created_at)"></td>
+                    <td class="px-3 py-3 text-center">
+                      <div class="flex items-center justify-center gap-2">
+                        <button @click="openComplaint(c)" class="text-xs text-cyan-400 hover:text-cyan-300 px-2 py-1 glass rounded-lg">View</button>
+                        <template x-if="isAdmin">
+                          <button @click="deleteComplaint(c.id)" class="text-xs text-red-400 hover:text-red-300 px-2 py-1 glass rounded-lg">Delete</button>
+                        </template>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
+            <span class="text-xs text-slate-500" x-text="'Showing '+complaints.length+' of '+totalComplaints+' complaints'"></span>
+            <div class="flex gap-3 items-center">
+              <button @click="if(currentPage>1){currentPage--;loadComplaints()}" :disabled="currentPage<=1" class="text-xs btn-ghost px-3 py-1 rounded-lg disabled:opacity-30">← Prev</button>
+              <span class="text-xs text-slate-400" x-text="'Page '+currentPage+' of '+Math.ceil(totalComplaints/pageLimit)"></span>
+              <button @click="currentPage++;loadComplaints()" :disabled="complaints.length < pageLimit" class="text-xs btn-ghost px-3 py-1 rounded-lg disabled:opacity-30">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ HEATMAP VIEW ════ -->
+      <div x-show="activeSidebar === 'Heatmap'">
+        <div x-show="loading.heatmap" class="flex items-center justify-center py-20 gap-3">
+          <svg class="animate-spin w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          <span class="text-slate-400">Loading heatmap data...</span>
+        </div>
+        <div x-show="!loading.heatmap" class="space-y-4">
+          <!-- Zone cards grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <template x-for="zone in heatmapData" :key="zone.id">
+              <div class="glass rounded-2xl p-6 relative overflow-hidden">
+                <!-- Background glow based on risk -->
+                <div class="absolute inset-0 opacity-10 pointer-events-none rounded-2xl"
+                     :class="zone.risk_score==='high'?'bg-red-500':zone.risk_score==='medium'?'bg-amber-500':'bg-emerald-500'"></div>
+                <div class="flex items-start justify-between mb-4">
+                  <div>
+                    <div class="font-syne font-bold text-white text-lg" x-text="zone.name"></div>
+                    <div class="text-xs text-slate-500 mt-0.5" x-text="zone.city||'Meerut'"></div>
+                  </div>
+                  <span class="px-3 py-1 rounded-full text-xs font-semibold"
+                        :class="zone.risk_score==='high'?'bg-red-500/20 text-red-400 border border-red-500/30':zone.risk_score==='medium'?'bg-amber-500/20 text-amber-400 border border-amber-500/30':'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'"
+                        x-text="(zone.risk_score||'low').toUpperCase()+' RISK'"></span>
+                </div>
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                  <div class="bg-white/[0.03] rounded-xl p-3 text-center">
+                    <div class="font-syne font-bold text-xl text-white" x-text="zone.total_complaints||0"></div>
+                    <div class="text-xs text-slate-500 mt-0.5">Total</div>
+                  </div>
+                  <div class="bg-white/[0.03] rounded-xl p-3 text-center">
+                    <div class="font-syne font-bold text-xl text-orange-400" x-text="zone.open_complaints||0"></div>
+                    <div class="text-xs text-slate-500 mt-0.5">Open</div>
+                  </div>
+                  <div class="bg-white/[0.03] rounded-xl p-3 text-center">
+                    <div class="font-syne font-bold text-xl text-red-400" x-text="zone.sla_breaches||0"></div>
+                    <div class="text-xs text-slate-500 mt-0.5">Breaches</div>
+                  </div>
+                </div>
+                <!-- Density bar -->
+                <div class="flex items-center gap-3">
+                  <span class="text-xs text-slate-500 w-20 flex-shrink-0">Complaint Density</span>
+                  <div class="flex-1 h-2 bg-white/[0.05] rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-1000"
+                         :class="zone.risk_score==='high'?'bg-gradient-to-r from-red-500 to-red-400':zone.risk_score==='medium'?'bg-gradient-to-r from-amber-500 to-amber-400':'bg-gradient-to-r from-emerald-500 to-emerald-400'"
+                         :style="'width:'+Math.min(100, (zone.total_complaints/Math.max(...heatmapData.map(z=>z.total_complaints||1)))*100)+'%'"></div>
+                  </div>
+                  <span class="text-xs text-slate-400 w-12 text-right" x-text="(zone.avg_resolution_hours||0)+'h avg'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+          <!-- Heatmap summary table -->
+          <div class="glass rounded-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-white/[0.06]"><div class="text-sm font-medium text-white">Zone Comparison</div></div>
+            <table class="w-full text-xs">
+              <thead><tr class="text-slate-600 uppercase tracking-widest border-b border-white/[0.04]">
+                <th class="text-left px-5 py-3">Zone</th>
+                <th class="text-center px-3 py-3">Total</th>
+                <th class="text-center px-3 py-3">Open</th>
+                <th class="text-center px-3 py-3">SLA Breaches</th>
+                <th class="text-center px-3 py-3">Avg Resolution</th>
+                <th class="text-center px-3 py-3">Risk</th>
+              </tr></thead>
+              <tbody>
+                <template x-for="zone in heatmapData" :key="'row-'+zone.id">
+                  <tr class="lb-row border-b border-white/[0.04] last:border-0">
+                    <td class="px-5 py-3 text-slate-200 font-medium" x-text="zone.name"></td>
+                    <td class="px-3 py-3 text-center text-slate-300" x-text="zone.total_complaints||0"></td>
+                    <td class="px-3 py-3 text-center text-orange-400" x-text="zone.open_complaints||0"></td>
+                    <td class="px-3 py-3 text-center text-red-400" x-text="zone.sla_breaches||0"></td>
+                    <td class="px-3 py-3 text-center text-slate-400" x-text="(zone.avg_resolution_hours||'—')+(zone.avg_resolution_hours?'h':'')"></td>
+                    <td class="px-3 py-3 text-center">
+                      <span class="px-2 py-0.5 rounded-full text-xs font-medium"
+                            :class="zone.risk_score==='high'?'bg-red-500/20 text-red-400':zone.risk_score==='medium'?'bg-amber-500/20 text-amber-400':'bg-emerald-500/20 text-emerald-400'"
+                            x-text="(zone.risk_score||'low')"></span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ ANALYTICS VIEW ════ -->
+      <div x-show="activeSidebar === 'Analytics'">
+        <div x-show="loading.analytics" class="flex items-center justify-center py-20 gap-3">
+          <svg class="animate-spin w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          <span class="text-slate-400">Loading analytics...</span>
+        </div>
+        <div x-show="!loading.analytics" class="space-y-4">
+          <!-- Overview stat cards -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <template x-for="kpi in kpis" :key="'an-'+kpi.label">
+              <div class="glass rounded-2xl p-5">
+                <div class="text-xs text-slate-500 uppercase tracking-widest mb-2" x-text="kpi.label"></div>
+                <div class="font-syne font-bold text-3xl" :class="kpi.color||'text-white'" x-text="kpi.value"></div>
+                <div class="text-xs mt-2" :class="kpi.up?'text-emerald-400':'text-red-400'" x-text="kpi.delta"></div>
+              </div>
+            </template>
+          </div>
+          <!-- Trend + Category charts -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-2 glass rounded-2xl p-5">
+              <div class="text-xs text-slate-500 uppercase tracking-widest mb-4">Complaint Trend (12 Months)</div>
+              <canvas id="analyticsBarChart" height="180"></canvas>
+            </div>
+            <div class="glass rounded-2xl p-5">
+              <div class="text-xs text-slate-500 uppercase tracking-widest mb-4">Category Breakdown</div>
+              <canvas id="analyticsDonutChart" height="180"></canvas>
+              <div class="mt-4 space-y-1.5">
+                <template x-for="cat in chartCategories" :key="'leg-'+cat.label">
+                  <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full flex-shrink-0" :style="'background:'+cat.color"></div>
+                      <span class="text-slate-400" x-text="cat.label"></span>
+                    </div>
+                    <span class="text-slate-300 font-medium" x-text="cat.pct"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+          <!-- SLA Violations table -->
+          <div class="glass rounded-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+              <div class="text-sm font-medium text-white">🚨 Active SLA Violations</div>
+              <span class="text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400" x-text="slaViolations.length+' breaches'"></span>
+            </div>
+            <div x-show="!slaViolations.length" class="text-center py-10 text-emerald-400 text-sm">✅ No active SLA violations</div>
+            <div class="overflow-x-auto" x-show="slaViolations.length">
+              <table class="w-full text-xs">
+                <thead><tr class="text-slate-600 uppercase tracking-widest border-b border-white/[0.04]">
+                  <th class="text-left px-5 py-3">Complaint</th>
+                  <th class="text-left px-3 py-3">Issue</th>
+                  <th class="text-center px-3 py-3">Priority</th>
+                  <th class="text-center px-3 py-3">Overdue By</th>
+                  <th class="text-left px-3 py-3">Department</th>
+                  <th class="text-left px-3 py-3">Officer</th>
+                </tr></thead>
+                <tbody>
+                  <template x-for="v in slaViolations" :key="v.id">
+                    <tr class="lb-row border-b border-white/[0.04] last:border-0">
+                      <td class="px-5 py-3 text-cyan-400 font-medium" x-text="v.complaint_no"></td>
+                      <td class="px-3 py-3 text-slate-300 max-w-[180px] truncate" x-text="v.title"></td>
+                      <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs" :class="'priority-'+v.priority" x-text="v.priority"></span></td>
+                      <td class="px-3 py-3 text-center text-red-400 font-medium" x-text="v.hours_overdue+'h'"></td>
+                      <td class="px-3 py-3 text-slate-400" x-text="v.department_name||'—'"></td>
+                      <td class="px-3 py-3 text-slate-400" x-text="v.officer_name||'Unassigned'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <!-- AI Predictive insights -->
+          <div class="glass rounded-2xl p-6">
+            <div class="text-sm font-medium text-white mb-4">🔮 Predictive Insights</div>
+            <div x-show="!aiInsights.length" class="text-slate-500 text-sm">No trend anomalies detected in the last 30 days.</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <template x-for="ins in aiInsights" :key="ins.zone+ins.category">
+                <div class="rounded-xl p-4 bg-violet-500/10 border border-violet-500/20">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-violet-300 font-semibold text-sm" x-text="ins.zone+' — '+ins.category"></span>
+                    <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-bold" x-text="'+'+ins.growth_pct+'%'"></span>
+                  </div>
+                  <p class="text-xs text-violet-200/70 leading-relaxed" x-text="ins.message"></p>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ DEPARTMENTS VIEW ════ -->
+      <div x-show="activeSidebar === 'Departments'">
+        <div x-show="loading.departments" class="flex items-center justify-center py-20 gap-3">
+          <svg class="animate-spin w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </div>
+        <div x-show="!loading.departments" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <template x-for="dept in departments" :key="dept.id||dept.name">
+            <div class="glass rounded-2xl p-6 feature-card group">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 rounded-xl bg-cyan-500/15 flex items-center justify-center text-2xl" x-text="dept.icon||'🏢'"></div>
+                <div>
+                  <div class="font-syne font-bold text-white" x-text="dept.name"></div>
+                  <div class="text-xs text-slate-500" x-text="dept.code||''"></div>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="bg-white/[0.03] rounded-xl p-3 text-center">
+                  <div class="font-syne font-bold text-lg text-white" x-text="dept.resolved||dept.total_assigned||0"></div>
+                  <div class="text-xs text-slate-500">Resolved</div>
+                </div>
+                <div class="bg-white/[0.03] rounded-xl p-3 text-center">
+                  <div class="font-syne font-bold text-lg text-amber-400" x-text="dept.avg_rating ? Number(dept.avg_rating).toFixed(1) : (dept.rating||'—')"></div>
+                  <div class="text-xs text-slate-500">Rating ★</div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="text-slate-500">Efficiency</span>
+                <span class="text-slate-300 font-medium" x-text="(dept.efficiency_pct||dept.efficiency||0)+'%'"></span>
+              </div>
+              <div class="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" :style="'width:'+(dept.efficiency_pct||dept.efficiency||0)+'%'"></div>
+              </div>
+              <div class="mt-3 flex items-center justify-between text-xs">
+                <span class="text-slate-500">Avg resolution</span>
+                <span class="text-slate-300" x-text="(dept.avg_resolution_hours||dept.avgTime||'—')+'h'"></span>
+              </div>
+              <div class="mt-3 flex items-center justify-between text-xs">
+                <span class="text-slate-500">SLA violations</span>
+                <span :class="(dept.sla_violations||0)>5?'text-red-400':'text-emerald-400'" x-text="dept.sla_violations||0"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ════ SLA RULES VIEW ════ -->
+      <div x-show="activeSidebar === 'SLA Rules'">
+        <div x-show="loading.sla" class="flex items-center justify-center py-20 gap-3">
+          <svg class="animate-spin w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </div>
+        <div x-show="!loading.sla" class="glass rounded-2xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-white/[0.06]">
+            <div class="text-sm font-medium text-white">SLA Configuration</div>
+            <div class="text-xs text-slate-500 mt-0.5">Hours allowed per complaint type before SLA is breached</div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead><tr class="text-slate-600 uppercase tracking-widest border-b border-white/[0.04]">
+                <th class="text-left px-5 py-3">Department</th>
+                <th class="text-left px-3 py-3">Category</th>
+                <th class="text-center px-3 py-3">Priority</th>
+                <th class="text-center px-3 py-3">SLA Hours</th>
+                <th class="text-center px-3 py-3">Edit</th>
+              </tr></thead>
+              <tbody>
+                <template x-for="rule in slaRules" :key="rule.id">
+                  <tr class="lb-row border-b border-white/[0.04] last:border-0">
+                    <td class="px-5 py-3 text-slate-300" x-text="rule.department_name"></td>
+                    <td class="px-3 py-3 text-slate-400 capitalize" x-text="rule.category"></td>
+                    <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs" :class="'priority-'+rule.priority" x-text="rule.priority"></span></td>
+                    <td class="px-3 py-3 text-center">
+                      <template x-if="editingSlaId !== rule.id">
+                        <span class="font-syne font-bold text-white" x-text="rule.sla_hours+'h'"></span>
+                      </template>
+                      <template x-if="editingSlaId === rule.id">
+                        <input type="number" x-model="editingSlaHours" class="input-field w-20 px-2 py-1 rounded-lg text-center text-xs" min="1" max="240"/>
+                      </template>
+                    </td>
+                    <td class="px-3 py-3 text-center">
+                      <template x-if="editingSlaId !== rule.id">
+                        <button @click="editingSlaId=rule.id;editingSlaHours=rule.sla_hours" class="text-xs text-cyan-400 hover:text-cyan-300 px-2 py-1 glass rounded-lg">Edit</button>
+                      </template>
+                      <template x-if="editingSlaId === rule.id">
+                        <div class="flex items-center justify-center gap-1">
+                          <button @click="saveSlaRule(rule)" class="text-xs text-emerald-400 hover:text-emerald-300 px-2 py-1 glass rounded-lg">Save</button>
+                          <button @click="editingSlaId=null" class="text-xs text-slate-400 hover:text-slate-300 px-2 py-1 glass rounded-lg">Cancel</button>
+                        </div>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ LEADERBOARD VIEW ════ -->
+      <div x-show="activeSidebar === 'Leaderboard'">
+        <div class="glass rounded-2xl overflow-hidden">
+          <div class="grid grid-cols-12 text-xs text-slate-600 uppercase tracking-widest px-5 py-3 border-b border-white/[0.06]">
+            <div class="col-span-1">#</div>
+            <div class="col-span-3">Department</div>
+            <div class="col-span-2 text-center">Resolved</div>
+            <div class="col-span-2 text-center">Avg Time</div>
+            <div class="col-span-2 text-center">Rating</div>
+            <div class="col-span-1 text-center">SLA%</div>
+            <div class="col-span-1 text-center">Eff%</div>
+          </div>
+          <template x-for="(dept, i) in departments" :key="'lb-'+dept.id">
+            <div class="lb-row grid grid-cols-12 items-center px-5 py-4 border-b border-white/[0.04] last:border-0">
+              <div class="col-span-1 font-syne font-bold text-lg" :class="i===0?'text-amber-400':i===1?'text-slate-300':i===2?'text-orange-600':'text-slate-600'" x-text="i+1"></div>
+              <div class="col-span-3 flex items-center gap-2">
+                <span class="text-base" x-text="dept.icon||'🏢'"></span>
+                <span class="text-sm text-slate-200 font-medium truncate" x-text="dept.name"></span>
+              </div>
+              <div class="col-span-2 text-center text-sm text-slate-300 font-medium" x-text="dept.resolved||dept.total_assigned||0"></div>
+              <div class="col-span-2 text-center text-sm text-slate-400" x-text="(dept.avg_resolution_hours||dept.avgTime||'—')+'h'"></div>
+              <div class="col-span-2 text-center">
+                <span class="text-amber-400">★</span>
+                <span class="text-sm text-slate-300 ml-1" x-text="dept.avg_rating ? Number(dept.avg_rating).toFixed(1) : (dept.rating||'—')"></span>
+              </div>
+              <div class="col-span-1 text-center">
+                <span class="text-xs px-2 py-0.5 rounded-full" :class="(dept.sla_compliance_pct||100)>=90?'sla-ok':'sla-warn'" x-text="(dept.sla_compliance_pct||100)+'%'"></span>
+              </div>
+              <div class="col-span-1 text-center text-xs font-medium" :class="(dept.efficiency_pct||0)>=80?'text-emerald-400':'text-amber-400'" x-text="(dept.efficiency_pct||0)+'%'"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ════ OFFICERS VIEW ════ -->
+      <div x-show="activeSidebar === 'Officers'">
+        <div x-show="loading.officers" class="flex items-center justify-center py-20 gap-3">
+          <svg class="animate-spin w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </div>
+        <div x-show="!loading.officers" class="glass rounded-2xl overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+            <div class="text-sm font-medium text-white">Officers</div>
+            <button @click="showAddOfficer=true" class="btn-primary px-4 py-2 rounded-lg text-xs">+ Add Officer</button>
+          </div>
+          <table class="w-full text-xs">
+            <thead><tr class="text-slate-600 uppercase tracking-widest border-b border-white/[0.04]">
+              <th class="text-left px-5 py-3">Name</th>
+              <th class="text-left px-3 py-3">Email</th>
+              <th class="text-left px-3 py-3">Phone</th>
+              <th class="text-center px-3 py-3">Status</th>
+              <th class="text-center px-3 py-3">Joined</th>
+            </tr></thead>
+            <tbody>
+              <template x-for="officer in officersList" :key="officer.id">
+                <tr class="lb-row border-b border-white/[0.04] last:border-0">
+                  <td class="px-5 py-3">
+                    <div class="flex items-center gap-2">
+                      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white" x-text="officer.name.charAt(0)"></div>
+                      <span class="text-slate-200 font-medium" x-text="officer.name"></span>
+                    </div>
+                  </td>
+                  <td class="px-3 py-3 text-slate-400" x-text="officer.email"></td>
+                  <td class="px-3 py-3 text-slate-400" x-text="officer.phone||'—'"></td>
+                  <td class="px-3 py-3 text-center">
+                    <span class="px-2 py-0.5 rounded-full text-xs" :class="officer.is_active?'sla-ok':'sla-breach'" x-text="officer.is_active?'Active':'Inactive'"></span>
+                  </td>
+                  <td class="px-3 py-3 text-center text-slate-500" x-text="formatDate(officer.created_at)"></td>
+                </tr>
+              </template>
+              <tr x-show="!officersList.length">
+                <td colspan="5" class="text-center py-10 text-slate-600">No officers found.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ===== PAGE: COMPLAINT TRACKER ===== -->
+<div x-show="page==='tracker'" class="page-enter relative z-10 min-h-screen pt-24">
+  <div class="max-w-4xl mx-auto px-6 py-8">
+
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <div class="text-xs text-cyan-400 tracking-widest uppercase font-semibold mb-2">Complaint Tracker</div>
+        <h1 class="font-syne font-extrabold text-3xl tracking-tight">Track Your <span class="gradient-text">Complaint</span></h1>
+      </div>
+      <button @click="page='submit'" class="btn-primary px-4 py-2.5 rounded-xl text-sm flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        New Report
+      </button>
+    </div>
+
+    <!-- Search -->
+    <div class="glass rounded-2xl p-4 mb-6 flex gap-3">
+      <input type="text" x-model="trackId" placeholder="Enter Complaint ID (e.g. CP-2847)"
+             class="input-field flex-1 px-4 py-3 rounded-xl text-sm"/>
+      <button @click="lookupComplaint()" class="btn-primary px-6 py-3 rounded-xl text-sm font-semibold">Track →</button>
+    </div>
+
+    <!-- Detail view (when complaint is selected) -->
+    <div x-show="trackedComplaint" class="space-y-4" x-transition>
+
+      <!-- Info card -->
+      <div class="glass rounded-2xl p-6">
+        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+          <div>
+            <div class="flex items-center gap-3 mb-2">
+              <span class="font-syne font-bold text-xl text-cyan-400" x-text="'#CP-'+trackedComplaint?.id"></span>
+              <span class="px-3 py-1 rounded-full text-xs font-medium" :class="'priority-'+trackedComplaint?.priority"
+                    x-text="trackedComplaint?.priority+' priority'"></span>
+            </div>
+            <h2 class="font-syne font-bold text-lg text-white" x-text="trackedComplaint?.issue"></h2>
+            <p class="text-slate-500 text-sm mt-1" x-text="(trackedComplaint?.zone_name||'') + ' · Submitted ' + formatDate(trackedComplaint?.created_at)"></p>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-slate-500 uppercase tracking-widest mb-1">SLA Remaining</div>
+            <div class="font-syne font-bold text-xl"
+                 :class="slaClass(trackedComplaint?.sla_deadline, trackedComplaint?.status)"
+                 x-text="slaBadgeLabel(trackedComplaint || {})"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-white/[0.03] rounded-xl p-4 text-center">
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Department</div>
+            <div class="text-sm font-medium text-white" x-text="trackedComplaint?.department_name || '—'"></div>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-4 text-center">
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Officer</div>
+            <div class="text-sm font-medium text-white" x-text="trackedComplaint?.officer_name    || 'Unassigned'"></div>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-4 text-center">
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Category</div>
+            <div class="text-sm font-medium text-white" x-text="trackedComplaint?.category || '—'"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Animated Timeline -->
+      <div class="glass rounded-2xl p-6">
+        <div class="text-sm font-medium text-white mb-6">Complaint Timeline</div>
+        <div class="space-y-0">
+          <template x-for="(event, idx) in trackerTimeline" :key="idx">
+            <div class="flex gap-4">
+              <div class="flex flex-col items-center">
+                <div class="timeline-node" :class="event.active?'active':''"
+                     :style="'background:' + (event.status_to ? '#06B6D4' : '#334155')"></div>
+                <div class="w-px flex-1 my-1 bg-white/10" style="min-height:32px;"
+                     x-show="idx < trackerTimeline.length - 1"></div>
+              </div>
+              <div class="pb-6">
+                <div class="flex items-center gap-3 mb-1">
+                  <span class="text-sm font-medium text-white" x-text="event.action"></span>
+                  <span x-show="event.active" class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 animate-pulse-slow">Live</span>
+                </div>
+                <div class="text-xs text-slate-500 mb-1" x-text="event.created_at ? new Date(event.created_at).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'Pending'"></div>
+                <div class="text-xs text-slate-400 leading-relaxed" x-text="event.description"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Feedback form (resolved only) -->
+      <div x-show="trackedComplaint?.status==='resolved' && !feedbackSubmitted && !trackedComplaint?.feedback_rating" class="glass rounded-2xl p-6">
+        <div class="text-sm font-medium text-white mb-4">Rate Resolution Quality</div>
+        <div class="flex gap-2 mb-4">
+          <template x-for="s in [1,2,3,4,5]" :key="s">
+            <button @click="feedbackRating=s" class="text-2xl transition-transform hover:scale-125"
+                    :class="feedbackRating >= s ? 'text-amber-400':'text-slate-700'">★</button>
+          </template>
+        </div>
+        <textarea x-model="feedbackText" rows="2" placeholder="Share your experience..."
+                  class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none mb-3"></textarea>
+        <button @click="submitFeedback()" class="btn-primary px-6 py-2.5 rounded-xl text-sm">Submit Feedback</button>
+      </div>
+
+      <!-- Feedback submitted confirmation -->
+      <div x-show="feedbackSubmitted" class="glass rounded-2xl p-5 flex items-center gap-4">
+        <div class="text-2xl">🙏</div>
+        <div>
+          <div class="text-sm font-medium text-white">Thank you for your feedback!</div>
+          <div class="text-xs text-slate-500 mt-0.5">Your rating helps improve department performance.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Default list (no complaint selected) -->
+    <div x-show="!trackedComplaint" class="space-y-3">
+      <div class="text-xs text-slate-500 uppercase tracking-widest mb-4">Recent Complaints</div>
+      <template x-for="c in complaints.slice(0,6)" :key="c.id">
+        <div class="glass rounded-xl px-5 py-4 flex items-center gap-4 hover:border-cyan-500/20 border border-white/[0.06] transition-all cursor-pointer group"
+             @click="openComplaint(c)">
+          <div class="w-2 h-2 rounded-full flex-shrink-0"
+               :class="c.status==='resolved'?'bg-emerald-400':c.status==='progress'?'bg-blue-400':'bg-orange-400'"></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-slate-200 truncate" x-text="c.issue"></div>
+            <div class="text-xs text-slate-500 mt-0.5" x-text="'#CP-'+c.id+' · '+c.zone"></div>
+          </div>
+          <span class="text-xs px-2.5 py-1 rounded-full" :class="'priority-'+c.priority" x-text="c.priority"></span>
+          <span class="text-xs font-medium" :class="'status-'+c.status"
+                x-text="c.status==='progress'?'In Progress':c.status.charAt(0).toUpperCase()+c.status.slice(1)"></span>
+          <svg class="w-4 h-4 text-slate-600 group-hover:text-cyan-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
