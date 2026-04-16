@@ -1,9 +1,6 @@
 // ============================================================
 // server.js — CivicPulse Express Application Entry Point
 // ============================================================
-// Start:    npm run dev
-// Init DB:  node config/initDB.js
-// ============================================================
 
 require('dotenv').config();
 
@@ -16,19 +13,17 @@ const { errorHandler } = require('./middleware/errorHandler');
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
-
-// Serve frontend
-app.use(express.static(path.join(__dirname, "public")));
-
-// Homepage route
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
 // ── Core Middleware ────────────────────────────────────────
 app.use(cors({ origin: process.env.CLIENT_URL || '*', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 👇 SERVE FRONTEND (THIS WAS YOUR MAIN ISSUE)
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

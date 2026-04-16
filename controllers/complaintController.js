@@ -154,7 +154,7 @@ exports.getMy = asyncHandler(async (req, res) => {
 
   if (status) { where += ' AND c.status = ?'; params.push(status); }
 
-  const [complaints] = await pool.query(
+  const [complaints] = await pool.execute(
     `SELECT c.id, c.complaint_no, c.title, c.category, c.priority, c.status,
             c.sla_deadline, c.created_at, c.resolved_at,
             z.name AS zone_name, d.name AS department_name
@@ -167,7 +167,7 @@ exports.getMy = asyncHandler(async (req, res) => {
     [...params, parseInt(limit), offset]
   );
 
-  const [[{ total }]] = await pool.query(
+  const [[{ total }]] = await pool.execute(
     `SELECT COUNT(*) AS total FROM complaints c ${where}`, params
   );
 
@@ -324,42 +324,98 @@ exports.getOne = asyncHandler(async (req, res) => {
 
 // ── GET /api/complaints ─── (admin / officer)
 exports.getAll = asyncHandler(async (req, res) => {
-  const { status, priority, category, zone_id, department_id, page = 1, limit = 20, search } = req.query;
-  const offset  = (parseInt(page) - 1) * parseInt(limit);
-  const params  = [];
-  let where     = 'WHERE 1=1';
+  const { status, priority, category, zone_id, department_id, page, limit, search } = req.query;
 
-  if (status)        { where += ' AND c.status = ?';        params.push(status); }
-  if (priority)      { where += ' AND c.priority = ?';      params.push(priority); }
-  if (category)      { where += ' AND c.category = ?';      params.push(category); }
-  if (zone_id)       { where += ' AND c.zone_id = ?';       params.push(zone_id); }
-  if (department_id) { where += ' AND c.department_id = ?'; params.push(department_id); }
-  if (search)        { where += ' AND (c.title LIKE ? OR c.complaint_no LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  // ✅ Safe pagination (prevents NaN SQL crash)
+  const pageNum  = Math.max(parseInt(page)  || 1, 1);
+  const limitNum = Math.max(parseInt(limit) || 20, 1);
+  const offset   = (pageNum - 1) * limitNum;
 
-  const [complaints] = await pool.query(
-    `SELECT c.id, c.complaint_no, c.title, c.category, c.priority, c.status,
-            c.sla_deadline, c.created_at,
-            CASE WHEN c.sla_deadline < NOW() AND c.status NOT IN ('resolved','closed')
-                 THEN 1 ELSE 0 END AS sla_breached,
-            z.name AS zone_name, d.name AS department_name,
-            u.name AS citizen_name, o.name AS officer_name
+  const params = [];
+  let where = 'WHERE 1=1';
+
+  if (status) {
+    where += ' AND c.status = ?';
+    params.push(status);
+  }
+
+  if (priority) {
+    where += ' AND c.priority = ?';
+    params.push(priority);
+  }
+
+  if (category) {
+    where += ' AND c.category = ?';
+    params.push(category);
+  }
+
+  if (zone_id) {
+    where += ' AND c.zone_id = ?';
+    params.push(parseInt(zone_id));
+  }
+
+  if (department_id) {
+    where += ' AND c.department_id = ?';
+    params.push(parseInt(department_id));
+  }
+
+  // ✅ Safe search (prevents %undefined%)
+  if (search && search.trim()) {
+    where += ' AND (c.title LIKE ? OR c.complaint_no LIKE ?)';
+    params.push(`%${search}%`, `%${search}%`);
+  }
+
+  // 🔍 Debug (optional – remove later)
+  console.log("QUERY PARAMS:", params, "LIMIT:", limitNum, "OFFSET:", offset);
+
+  const [complaints] = await pool.execute(
+    `SELECT 
+        c.id,
+        c.complaint_no,
+        c.title,
+        c.category,
+        c.priority,
+        c.status,
+        c.sla_deadline,
+        c.created_at,
+
+        CASE 
+          WHEN c.sla_deadline < NOW() AND c.status NOT IN ('resolved','closed')
+          THEN 1 ELSE 0 
+        END AS sla_breached,
+
+        z.name AS zone_name,
+        d.name AS department_name,
+        u.name AS citizen_name,
+        o.name AS officer_name
+
      FROM complaints c
      LEFT JOIN zones       z ON z.id = c.zone_id
      LEFT JOIN departments d ON d.id = c.department_id
      LEFT JOIN users       u ON u.id = c.citizen_id
      LEFT JOIN users       o ON o.id = c.assigned_officer_id
+
      ${where}
+
      ORDER BY c.created_at DESC
      LIMIT ? OFFSET ?`,
-    [...params, parseInt(limit), offset]
+    [...params, limitNum, offset]
   );
 
-  const [[{ total }]] = await pool.query(
-    `SELECT COUNT(*) AS total FROM complaints c ${where}`, params
+  const [[{ total }]] = await pool.execute(
+    `SELECT COUNT(*) AS total FROM complaints c ${where}`,
+    params
   );
 
-  res.json({ success: true, complaints, total, page: parseInt(page), limit: parseInt(limit) });
+  res.json({
+    success: true,
+    complaints,
+    total,
+    page: pageNum,
+    limit: limitNum
+  });
 });
+
 
 // ── PUT /api/complaints/:id/assign ────────────────────────
 exports.assign = asyncHandler(async (req, res) => {

@@ -92,40 +92,95 @@
     <h2 class="font-syne font-bold text-2xl text-white mb-1">Create account</h2>
     <p class="text-slate-500 text-sm mb-6">Join CivicPulse as a citizen</p>
 
-    <div x-show="authError" class="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm" x-text="authError"></div>
+    <!-- Global error message (non-field errors) -->
+    <div x-show="authError && !authFieldErrors" class="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm" x-text="authError"></div>
 
     <div class="space-y-4">
+
+      <!-- Full Name -->
       <div>
         <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Full Name</label>
-        <input type="text" x-model="registerForm.name" placeholder="Anjali Sharma"
+        <input type="text" x-model="registerForm.name"
+               @input="clearFieldError('name')"
+               placeholder="Anjali Sharma"
+               :class="authFieldErrors?.name ? 'border-red-500/60 bg-red-500/5' : ''"
                class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+        <p x-show="authFieldErrors?.name" class="text-red-400 text-xs mt-1.5 flex items-center gap-1">
+          <span>⚠</span> <span x-text="authFieldErrors?.name"></span>
+        </p>
+        <p x-show="!authFieldErrors?.name" class="text-slate-600 text-xs mt-1">Letters, spaces, hyphens only.</p>
       </div>
+
+      <!-- Email -->
       <div>
-        <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Email</label>
-        <input type="email" x-model="registerForm.email" placeholder="you@example.com"
+        <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Email Address</label>
+        <input type="email" x-model="registerForm.email"
+               @input="clearFieldError('email')"
+               placeholder="you@gmail.com"
+               :class="authFieldErrors?.email ? 'border-red-500/60 bg-red-500/5' : ''"
                class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+        <p x-show="authFieldErrors?.email" class="text-red-400 text-xs mt-1.5 flex items-center gap-1">
+          <span>⚠</span> <span x-text="authFieldErrors?.email"></span>
+        </p>
       </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Password</label>
-          <input type="password" x-model="registerForm.password" placeholder="Min 8 chars"
-                 class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+
+      <!-- Password -->
+      <div>
+        <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Password</label>
+        <div class="relative">
+          <input :type="showPassword ? 'text' : 'password'"
+                 x-model="registerForm.password"
+                 @input="clearFieldError('password'); checkPasswordStrength(registerForm.password)"
+                 placeholder="Min 8 chars"
+                 :class="authFieldErrors?.password ? 'border-red-500/60 bg-red-500/5' : ''"
+                 class="input-field w-full px-4 py-3 pr-10 rounded-xl text-sm"/>
+          <button type="button" @click="showPassword=!showPassword"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs">
+            <span x-text="showPassword ? '🙈' : '👁'"></span>
+          </button>
         </div>
-        <div>
-          <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">Phone</label>
-          <input type="tel" x-model="registerForm.phone" placeholder="9876543210"
-                 class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+        <p x-show="authFieldErrors?.password" class="text-red-400 text-xs mt-1.5 flex items-center gap-1">
+          <span>⚠</span> <span x-text="authFieldErrors?.password"></span>
+        </p>
+        <!-- Password strength bar -->
+        <div x-show="registerForm.password.length > 0 && !authFieldErrors?.password" class="mt-2">
+          <div class="flex gap-1 mb-1">
+            <template x-for="i in 4">
+              <div class="h-1 flex-1 rounded-full transition-all duration-300"
+                   :class="i <= passwordStrength ? (passwordStrength <= 1 ? 'bg-red-500' : passwordStrength <= 2 ? 'bg-amber-500' : passwordStrength <= 3 ? 'bg-yellow-400' : 'bg-emerald-500') : 'bg-white/10'"></div>
+            </template>
+          </div>
+          <span class="text-xs" :class="passwordStrength <= 1 ? 'text-red-400' : passwordStrength <= 2 ? 'text-amber-400' : passwordStrength <= 3 ? 'text-yellow-400' : 'text-emerald-400'"
+                x-text="['','Weak — add uppercase, numbers & symbols','Fair — add numbers & symbols','Good — add a symbol','Strong ✓'][passwordStrength]"></span>
         </div>
+        <p x-show="!authFieldErrors?.password && registerForm.password.length === 0" class="text-slate-600 text-xs mt-1">Min 8 chars · uppercase · lowercase · number · symbol</p>
       </div>
+
+      <!-- Phone -->
+      <div>
+        <label class="block text-xs text-slate-400 uppercase tracking-widest mb-2">
+          Phone <span class="text-slate-600 normal-case tracking-normal font-normal">(optional)</span>
+        </label>
+        <input type="tel" x-model="registerForm.phone"
+               @input="clearFieldError('phone')"
+               placeholder="9876543210"
+               :class="authFieldErrors?.phone ? 'border-red-500/60 bg-red-500/5' : ''"
+               class="input-field w-full px-4 py-3 rounded-xl text-sm"/>
+        <p x-show="authFieldErrors?.phone" class="text-red-400 text-xs mt-1.5 flex items-center gap-1">
+          <span>⚠</span> <span x-text="authFieldErrors?.phone"></span>
+        </p>
+        <p x-show="!authFieldErrors?.phone" class="text-slate-600 text-xs mt-1">10-digit Indian mobile number (6–9 start)</p>
+      </div>
+
       <button @click="doRegister()" :disabled="authLoading"
-              class="btn-primary w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+              class="btn-primary w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mt-2">
         <svg x-show="authLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-        <span x-text="authLoading ? 'Creating...' : 'Create Account'"></span>
+        <span x-text="authLoading ? 'Creating account...' : 'Create Account'"></span>
       </button>
     </div>
     <p class="text-center text-sm text-slate-500 mt-5">
-      Have an account?
-      <button @click="showRegister=false;showLogin=true;authError=''" class="text-cyan-400 hover:underline">Sign in</button>
+      Already have an account?
+      <button @click="showRegister=false;showLogin=true;authError='';authFieldErrors=null" class="text-cyan-400 hover:underline">Sign in</button>
     </p>
   </div>
 </div>

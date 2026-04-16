@@ -47,7 +47,23 @@ const api = {
 
     const res  = await fetch(`${API_BASE}${path}`, opts);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+
+    if (!res.ok) {
+      // If token expired, auto-logout the user
+      if (res.status === 401 && data.message?.toLowerCase().includes('expired')) {
+        localStorage.removeItem('cp_token');
+        localStorage.removeItem('cp_user');
+        localStorage.removeItem('cp_token_exp');
+        // Trigger re-login prompt by dispatching a custom event
+        window.dispatchEvent(new CustomEvent('token-expired'));
+      }
+
+      // If validation errors exist, attach them to the error object
+      const err = new Error(data.message || `HTTP ${res.status}`);
+      if (data.errors) err._fieldErrors = data.errors;
+      throw err;
+    }
+
     return data;
   },
 
@@ -112,8 +128,12 @@ function app() {
     showRegister: false,
     loginForm:    { email:'', password:'' },
     registerForm: { name:'', email:'', password:'', phone:'' },
-    authError:    '',
-    authLoading:  false,
+    authError:       '',
+    authFieldErrors: null,   // object of { field: 'error message' }
+    authLoading:     false,
+    showPassword:    false,
+    passwordStrength: 0,     // 0–4
+    tokenExpiresAt:  localStorage.getItem('cp_token_exp') || null,
 
     /* ── Toasts ── */
     toasts: [],
@@ -248,7 +268,7 @@ function app() {
        AUTH
        ========================================================== */
     async doLogin() {
-      this.authError = ''; this.authLoading = true;
+      this.authError = ''; this.authFieldErrors = null; this.authLoading = true;
       try {
         const data = await api.auth.login(this.loginForm.email, this.loginForm.password);
         this._saveAuth(data);
@@ -264,31 +284,46 @@ function app() {
     },
 
     async doRegister() {
-      this.authError = ''; this.authLoading = true;
+      this.authError = ''; this.authFieldErrors = null; this.authLoading = true;
       try {
         const data = await api.auth.register(this.registerForm);
         this._saveAuth(data);
-        this.showRegister = false;
-        this.registerForm = { name:'', email:'', password:'', phone:'' };
+        this.showRegister    = false;
+        this.showPassword    = false;
+        this.passwordStrength = 0;
+        this.registerForm    = { name:'', email:'', password:'', phone:'' };
         this.toast('Account created! Welcome to CivicPulse 🎉');
         this.page = 'submit';
       } catch (err) {
-        this.authError = err.message;
+        // API returns { success:false, message:'...', errors:{ name, email, password, phone } }
+        // We parse the raw response to get field-level errors
+        if (err._fieldErrors) {
+          this.authFieldErrors = err._fieldErrors;
+        } else {
+          this.authError = err.message;
+        }
       } finally { this.authLoading = false; }
     },
 
     doLogout() {
-      this.token = null; this.user = null;
-      localStorage.removeItem('cp_token'); localStorage.removeItem('cp_user');
+      this.token          = null;
+      this.user           = null;
+      this.tokenExpiresAt = null;
+      localStorage.removeItem('cp_token');
+      localStorage.removeItem('cp_user');
+      localStorage.removeItem('cp_token_exp');
       this.notifications = []; this.unreadCount = 0;
       this.page = 'landing';
       this.toast('Logged out.', 'info');
     },
 
     _saveAuth(data) {
-      this.token = data.token; this.user = data.user;
-      localStorage.setItem('cp_token', data.token);
-      localStorage.setItem('cp_user',  JSON.stringify(data.user));
+      this.token         = data.token;
+      this.user          = data.user;
+      this.tokenExpiresAt = data.expires_at || null;
+      localStorage.setItem('cp_token',     data.token);
+      localStorage.setItem('cp_user',      JSON.stringify(data.user));
+      if (data.expires_at) localStorage.setItem('cp_token_exp', data.expires_at);
     },
 
     /* ==========================================================
@@ -334,7 +369,12 @@ function app() {
           { label:'Issues Resolved',   display: Number(o.resolved || 0).toLocaleString() },
           { label:'Active Complaints', display: Number(o.active   || 0).toLocaleString() },
           { label:'Avg Resolution',    display: (o.avg_resolution_hours || 0) + 'h' },
-          { label:'SLA Compliance',    display: (o.sla_compliance_pct   || 0) + '%' },
+{
+ 
+  label: 'SLA Compliance',
+  display: 'N/A'
+
+}
         ];
         this.departments = lb.leaderboard || [];
       } catch (_) { /* leave dashes if backend unreachable */ }
@@ -663,6 +703,51 @@ function app() {
         this.loadNotifications();
         setInterval(() => this.loadNotifications(), 30000);
       }
+
+      // Auto-logout when token expires (caught by API layer)
+      window.addEventListener('token-expired', () => {
+        this.token          = null;
+        this.user           = null;
+        this.tokenExpiresAt = null;
+        this.notifications  = [];
+        this.unreadCount    = 0;
+        this.page           = 'landing';
+        this.showLogin      = true;
+        this.authError      = 'Your session has expired. Please sign in again.';
+      });
+
+      // Proactive expiry check every 60 seconds
+      setInterval(() => {
+        if (this.tokenExpiresAt && new Date(this.tokenExpiresAt) <= new Date()) {
+          window.dispatchEvent(new CustomEvent('token-expired'));
+        }
+      }, 60000);
+    },
+
+    /* ==========================================================
+       REGISTER FORM HELPERS
+       ========================================================== */
+
+    // Clear a single field error when user starts correcting it
+    clearFieldError(field) {
+      if (this.authFieldErrors && this.authFieldErrors[field]) {
+        this.authFieldErrors = { ...this.authFieldErrors, [field]: null };
+        // If no more errors, null out the whole object
+        if (Object.values(this.authFieldErrors).every(v => !v)) {
+          this.authFieldErrors = null;
+        }
+      }
+    },
+
+    // Real-time password strength meter (0=none, 1=weak, 2=fair, 3=good, 4=strong)
+    checkPasswordStrength(pw) {
+      if (!pw) { this.passwordStrength = 0; return; }
+      let score = 0;
+      if (pw.length >= 8)              score++;
+      if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+      if (/[0-9]/.test(pw))            score++;
+      if (/[^A-Za-z0-9]/.test(pw))     score++;
+      this.passwordStrength = score;
     },
 
     /* ==========================================================

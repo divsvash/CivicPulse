@@ -15,7 +15,7 @@ async function initDB() {
       host:     process.env.DB_HOST     || 'localhost',
       port:     process.env.DB_PORT     || 3306,
       user:     process.env.DB_USER     || 'root',
-      password: process.env.DB_PASSWORD || 'Divssqlpass@26',
+      password: process.env.DB_PASSWORD || '',
     });
 
     const DB = process.env.DB_NAME || 'civicpulse';
@@ -23,7 +23,7 @@ async function initDB() {
 
     // ── Create database ──
     await conn.execute(`CREATE DATABASE IF NOT EXISTS \`${DB}\``);
-    await conn.query(`USE \`${DB}\``);
+    await conn.execute(`USE \`${DB}\``);
 
     // ── USERS ──
     await conn.execute(`
@@ -165,7 +165,53 @@ async function initDB() {
     `);
 
     console.log('✅  All tables created');
+// 🌱 Insert Dummy Data
 
+const seedData = async () => {
+  try {
+    // Users
+    await db.query(`
+      INSERT INTO users (name, email, password, role)
+      VALUES
+      ('Admin User', 'admin@civicpulse.com', '123456', 'admin'),
+      ('Riya Sharma', 'riya@gmail.com', '123456', 'citizen'),
+      ('Amit Kumar', 'amit@gmail.com', '123456', 'citizen')
+    `);
+
+    // Departments
+    await db.query(`
+      INSERT INTO departments (name)
+      VALUES
+      ('Sanitation'),
+      ('Electricity'),
+      ('Roads')
+    `);
+
+    // Zones
+    await db.query(`
+      INSERT INTO zones (name)
+      VALUES
+      ('Zone A'),
+      ('Zone B'),
+      ('Zone C')
+    `);
+
+    // Complaints
+    await db.query(`
+      INSERT INTO complaints (title, description, status, user_id)
+      VALUES
+      ('Garbage not collected', 'Trash hasn’t been picked for 3 days', 'pending', 2),
+      ('Street light broken', 'Light not working at night', 'in_progress', 3),
+      ('Potholes on road', 'Huge potholes causing traffic', 'resolved', 2)
+    `);
+
+    console.log("🌱 Dummy data inserted!");
+  } catch (err) {
+    console.error("❌ Seeding failed:", err.message);
+  }
+};
+
+seedData();
     // ──────────────────────────────────────────────
     // SEED DATA
     // ──────────────────────────────────────────────

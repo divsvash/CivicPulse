@@ -8,3 +8,4 @@ router.patch('/read-all',       authenticate, nc.markAllRead);
 router.patch('/:id/read',       authenticate, nc.markRead);
 
 module.exports = router;
+
