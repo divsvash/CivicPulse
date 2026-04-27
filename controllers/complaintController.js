@@ -368,7 +368,7 @@ exports.getAll = asyncHandler(async (req, res) => {
   // 🔍 Debug (optional – remove later)
   console.log("QUERY PARAMS:", params, "LIMIT:", limitNum, "OFFSET:", offset);
 
-  const [complaints] = await pool.execute(
+  const [complaints] = await pool.query(
     `SELECT 
         c.id,
         c.complaint_no,
@@ -402,7 +402,7 @@ exports.getAll = asyncHandler(async (req, res) => {
     [...params, limitNum, offset]
   );
 
-  const [[{ total }]] = await pool.execute(
+  const [[{ total }]] = await pool.query(
     `SELECT COUNT(*) AS total FROM complaints c ${where}`,
     params
   );

@@ -15,18 +15,18 @@ async function initDB() {
       host:     process.env.DB_HOST     || 'localhost',
       port:     process.env.DB_PORT     || 3306,
       user:     process.env.DB_USER     || 'root',
-      password: process.env.DB_PASSWORD || '',
+      password: process.env.DB_PASSWORD || 'Divssqlpass@26',
     });
 
     const DB = process.env.DB_NAME || 'civicpulse';
     console.log(`🔧  Initialising database: ${DB}`);
 
     // ── Create database ──
-    await conn.execute(`CREATE DATABASE IF NOT EXISTS \`${DB}\``);
-    await conn.execute(`USE \`${DB}\``);
+    await conn.query(`CREATE DATABASE IF NOT EXISTS \`${DB}\``);
+    await conn.query(`USE \`${DB}\``);
 
     // ── USERS ──
-    await conn.execute(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id            INT AUTO_INCREMENT PRIMARY KEY,
         name          VARCHAR(100)  NOT NULL,
@@ -44,7 +44,7 @@ async function initDB() {
     `);
 
     // ── DEPARTMENTS ──
-    await conn.execute(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS departments (
         id            INT AUTO_INCREMENT PRIMARY KEY,
         name          VARCHAR(100)  NOT NULL,
@@ -60,7 +60,7 @@ async function initDB() {
     `);
 
     // ── ZONES ──
-    await conn.execute(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS zones (
         id            INT AUTO_INCREMENT PRIMARY KEY,
         name          VARCHAR(100)  NOT NULL,
@@ -74,7 +74,7 @@ async function initDB() {
     `);
 
     // ── COMPLAINTS ──
-    await conn.execute(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS complaints (
         id              INT AUTO_INCREMENT PRIMARY KEY,
         complaint_no    VARCHAR(20)   NOT NULL UNIQUE,
@@ -115,7 +115,7 @@ async function initDB() {
     `);
 
     // ── COMPLAINT TIMELINE ──
-    await conn.execute(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS complaint_timeline (
         id            INT AUTO_INCREMENT PRIMARY KEY,
         complaint_id  INT           NOT NULL,
@@ -132,7 +132,7 @@ async function initDB() {
     `);
 
     // ── SLA RULES ──
-    await conn.execute(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS sla_rules (
         id            INT AUTO_INCREMENT PRIMARY KEY,
         department_id INT           NOT NULL,
@@ -147,7 +147,7 @@ async function initDB() {
     `);
 
     // ── NOTIFICATIONS ──
-    await conn.execute(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS notifications (
         id            INT AUTO_INCREMENT PRIMARY KEY,
         user_id       INT           NOT NULL,
@@ -170,7 +170,7 @@ async function initDB() {
 const seedData = async () => {
   try {
     // Users
-    await db.query(`
+    await connection.query(`
       INSERT INTO users (name, email, password, role)
       VALUES
       ('Admin User', 'admin@civicpulse.com', '123456', 'admin'),
@@ -179,7 +179,7 @@ const seedData = async () => {
     `);
 
     // Departments
-    await db.query(`
+    await connection.query(`
       INSERT INTO departments (name)
       VALUES
       ('Sanitation'),
@@ -188,7 +188,7 @@ const seedData = async () => {
     `);
 
     // Zones
-    await db.query(`
+    await connection.query(`
       INSERT INTO zones (name)
       VALUES
       ('Zone A'),
@@ -197,7 +197,7 @@ const seedData = async () => {
     `);
 
     // Complaints
-    await db.query(`
+    await connection.query(`
       INSERT INTO complaints (title, description, status, user_id)
       VALUES
       ('Garbage not collected', 'Trash hasn’t been picked for 3 days', 'pending', 2),
@@ -211,13 +211,13 @@ const seedData = async () => {
   }
 };
 
-seedData();
+
     // ──────────────────────────────────────────────
     // SEED DATA
     // ──────────────────────────────────────────────
 
     // Zones
-    await conn.execute(`
+    await conn.query(`
       INSERT IGNORE INTO zones (name, code, city, latitude, longitude, risk_score) VALUES
       ('Zone 1 – Civil Lines',    'Z1', 'Meerut', 28.9845, 77.7064, 'high'),
       ('Zone 2 – Hapur Road',     'Z2', 'Meerut', 28.9756, 77.7215, 'medium'),
@@ -226,7 +226,7 @@ seedData();
     `);
 
     // Departments
-    await conn.execute(`
+    await conn.query(`
       INSERT IGNORE INTO departments (name, code, icon, description, sla_hours) VALUES
       ('Roads & Infrastructure', 'ROADS', '🛣',  'Manages road repair, potholes, and civil infrastructure.', 48),
       ('Water Supply',           'WATER', '💧',  'Handles water pipeline issues and supply interruptions.',  24),
@@ -240,7 +240,7 @@ seedData();
     const officerHash = await bcrypt.hash('Officer@123', 10);
     const citizenHash = await bcrypt.hash('Citizen@123', 10);
 
-    await conn.execute(`
+    await conn.query(`
       INSERT IGNORE INTO users (name, email, password_hash, phone, role) VALUES
       ('Super Admin',    'admin@civicpulse.in',    '${adminHash}',   '9999000001', 'admin'),
       ('Ravi Kumar',     'ravi@civicpulse.in',     '${officerHash}', '9999000002', 'officer'),
@@ -254,7 +254,7 @@ seedData();
     `);
 
     // SLA Rules
-    await conn.execute(`
+    await conn.query(`
       INSERT IGNORE INTO sla_rules (department_id, category, priority, sla_hours)
       SELECT d.id, c.cat, p.pri, p.hrs
       FROM departments d
@@ -267,7 +267,7 @@ seedData();
     `);
 
     // Sample Complaints
-    await conn.execute(`
+    await conn.query(`
       INSERT IGNORE INTO complaints
         (complaint_no, title, description, category, priority, status, citizen_id, department_id, zone_id, sla_deadline, created_at)
       VALUES
@@ -280,7 +280,7 @@ seedData();
     `);
 
     // Sample Timeline entries
-    await conn.execute(`
+    await conn.query(`
       INSERT IGNORE INTO complaint_timeline (complaint_id, actor_id, action, description, status_from, status_to, created_at)
       SELECT c.id, 7, 'Complaint Submitted', 'Complaint registered by citizen.', NULL, 'open', c.created_at
       FROM complaints c
